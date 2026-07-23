@@ -18,7 +18,7 @@ $pagina_actual = isset($_GET['p']) ? max(1, intval($_GET['p'])) : 1;
 $offset = ($pagina_actual - 1) * $por_pagina;
 
 // ── SEO: título y descripción dinámicos ──
-$dominio = "https://www.noticiasplec.com"; // <-- cambia por tu dominio real
+$dominio = "https://noticiasplec-production.up.railway.app"; // <-- cambia por tu dominio real
 $seo_titulo   = "Noticias PLEC - #SomosTodos | Noticiero Independiente";
 $seo_desc     = "Noticias PLEC, noticiero independiente del Tolima, Colombia. Colombia, política, salud, internacional, educación y farándula.";
 $seo_imagen   = $dominio . "/img/logo-plec.jpg";
@@ -2293,9 +2293,9 @@ function plecVideoEmbed(url) {
 function abrirModal(t, i, c, v) {
     v = v || '';
     const textoPlano = c.replace(/<[^>]*>/g,'');
-    const urlPagina = encodeURIComponent('https://www.noticiasplec.com');
-    const urlCompartirWA = encodeURIComponent('📰 ' + t + ' — Noticias PLEC: https://www.noticiasplec.com');
-    const urlCompartirTG = encodeURIComponent('https://www.noticiasplec.com') + '&text=' + encodeURIComponent('📰 ' + t + ' — Noticias PLEC');
+    const urlPagina = encodeURIComponent('https://noticiasplec-production.up.railway.app');
+    const urlCompartirWA = encodeURIComponent('📰 ' + t + ' — Noticias PLEC: https://noticiasplec-production.up.railway.app');
+    const urlCompartirTG = encodeURIComponent('https://noticiasplec-production.up.railway.app') + '&text=' + encodeURIComponent('📰 ' + t + ' — Noticias PLEC');
     const favKey = 'fav_' + btoa(unescape(encodeURIComponent(t))).substring(0,20);
     const yaGuardado = localStorage.getItem(favKey);
     const videoHtml = plecVideoEmbed(v);
@@ -2657,7 +2657,7 @@ window.addEventListener('DOMContentLoaded', function() {
 
 // ── QR ────────────────────────────────────────────────────────────────────────
 function abrirQR(tituloEnc) {
-    const url = 'https://www.noticiasplec.com';
+    const url = 'https://noticiasplec-production.up.railway.app';
     document.getElementById('qrUrl').textContent = url;
     const canvas = document.getElementById('qrCanvas');
     const ctx = canvas.getContext('2d');
@@ -2666,7 +2666,7 @@ function abrirQR(tituloEnc) {
     ctx.fillStyle = '#1a73e8';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('noticiasplec.com', 100, 100);
+    ctx.fillText('noticiasplec-production', 100, 100);
     ctx.font = '9px sans-serif';
     ctx.fillStyle = '#555';
     ctx.fillText('Escanea con tu cámara', 100, 120);
@@ -2720,7 +2720,7 @@ function dibujarTextoIG(ctx, titulo, W, H) {
     lineas.forEach((l,i) => ctx.fillText(l, W/2, yStart + i*26));
     // URL
     ctx.fillStyle = '#1a73e8'; ctx.font = '12px sans-serif';
-    ctx.fillText('noticiasplec.com · #SomosTodos', W/2, H-20);
+    ctx.fillText('noticiasplec-production.up.railway.app · #SomosTodos', W/2, H-20);
 }
 function cerrarIG() { document.getElementById('modalIG').classList.remove('show'); }
 function descargarIG() {
