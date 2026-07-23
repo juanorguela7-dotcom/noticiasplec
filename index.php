@@ -298,7 +298,7 @@ if (!empty($busqueda)) {
         .btn-impreso-side { color: var(--rojo) !important; font-weight: bold; }
 
         /* BOTÓN REVISTA FLOTANTE */
-        .btn-revista-flotante { 
+        .btn-revista-flotante {
             position: fixed; 
             bottom: 30px; 
             right: 30px; 
@@ -317,8 +317,16 @@ if (!empty($busqueda)) {
             letter-spacing: 0.5px;
             text-transform: uppercase;
             transition: 0.3s;
+            animation: deslizarEspecial 7s ease-in-out infinite;
         }
-        .btn-revista-flotante:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
+        .btn-revista-flotante:hover { animation-play-state: paused; transform: translateX(0) translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.5); }
+        @keyframes deslizarEspecial {
+            0%   { transform: translateX(0); }
+            45%  { transform: translateX(0); }
+            55%  { transform: translateX(72%); }
+            90%  { transform: translateX(72%); }
+            100% { transform: translateX(0); }
+        }
 
         /* MAQUETADO GENERAL */
         main { 
@@ -1343,13 +1351,6 @@ if (!empty($busqueda)) {
         .efemerides-texto { font-size: 13px; color: #ccc; line-height: 1.5; }
 
         /* ── CONTADOR REGRESIVO ──────────────────────────────────────────── */
-        .contador-box { background: #111; border: 1px solid #1e1e1e; border-radius: 12px; padding: 22px 20px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
-        .contador-titulo { font-size: 10px; font-weight: 700; color: #888; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
-        .contador-evento { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--rojo); margin-bottom: 18px; line-height: 1.3; }
-        .contador-digitos { display: flex; justify-content: center; align-items: flex-start; gap: 6px; }
-        .contador-bloque { display: flex; flex-direction: column; align-items: center; }
-        .contador-num { font-size: 36px; font-weight: 900; color: #fff; font-family: 'Playfair Display', serif; line-height: 1; }
-        .contador-label { font-size: 8px; color: #666; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; }
 
         /* ── COMPARTIR MEJORADO ──────────────────────────────────────────── */
         .btn-telegram { display: inline-flex; align-items: center; gap: 6px; background: #2ca5e0; color: #fff; font-size: 11px; font-weight: bold; padding: 5px 12px; border-radius: 20px; cursor: pointer; margin-top: 12px; margin-left: 8px; transition: 0.3s; text-decoration: none; text-transform: uppercase; letter-spacing: 1px; border: none; }
@@ -1468,6 +1469,9 @@ function cerrarBienvenida() {
         <div class="bienvenida-linea"></div>
         <div class="bienvenida-titular" id="bienvenidaTitular">La verdad no espera.<br>Bienvenido al periodismo libre.</div>
         <p class="bienvenida-texto">Desde el corazón del Tolima, te traemos las noticias que importan. Sin filtros, sin censura, con la pasión de quienes creen en la información como herramienta de cambio.</p>
+        <div style="background:rgba(26,115,232,0.1); border:1px solid rgba(26,115,232,0.3); border-radius:8px; padding:10px 12px; margin-bottom:18px; font-size:11px; color:#9ab4e0; line-height:1.5;">
+            🖥️ Para una mejor experiencia en el sitio, activa el <b>modo escritorio</b> en el navegador de tu celular o computadora.
+        </div>
         <div class="bienvenida-fecha">
             📅 <?php
                 $dias = array("Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado");
@@ -2161,7 +2165,7 @@ function cerrarBienvenida() {
 
 <!-- LO MÁS LEÍDO + EFEMÉRIDES + CONTADOR -->
 <?php if (!$esta_filtrando): ?>
-<div style="max-width:1350px; margin:0 auto 40px; padding:0 20px; box-sizing:border-box; display:grid; grid-template-columns:1fr 1.4fr 1fr; gap:20px;">
+<div style="max-width:1350px; margin:0 auto 40px; padding:0 20px; box-sizing:border-box; display:grid; grid-template-columns:1fr 1.2fr; gap:20px;">
 
     <!-- LO MÁS LEÍDO -->
     <div class="mas-leido-box">
@@ -2198,19 +2202,6 @@ function cerrarBienvenida() {
             echo "</div>";
         }
         ?>
-    </div>
-
-    <!-- CONTADOR REGRESIVO -->
-    <div class="contador-box">
-        <div class="contador-titulo">⏳ Cuenta regresiva</div>
-        <div class="contador-evento">Elecciones Regionales 2026</div>
-        <div class="contador-digitos">
-            <div class="contador-bloque"><div class="contador-num" id="cntDias">--</div><div class="contador-label">Días</div></div>
-            <div class="contador-bloque" style="color:#444;font-size:22px;padding-top:2px;font-weight:300;">:</div>
-            <div class="contador-bloque"><div class="contador-num" id="cntHoras">--</div><div class="contador-label">Horas</div></div>
-            <div class="contador-bloque" style="color:#444;font-size:22px;padding-top:2px;font-weight:300;">:</div>
-            <div class="contador-bloque"><div class="contador-num" id="cntMins">--</div><div class="contador-label">Min</div></div>
-        </div>
     </div>
 </div>
 <?php endif; ?>
@@ -2432,14 +2423,12 @@ window.addEventListener('DOMContentLoaded', function() {
         document.getElementById('bienvenidaTitular').innerHTML = titulares[tIdx];
         puntos.forEach((p, i) => p.classList.toggle('activo', i === tIdx));
     }, 2800);
-    // Mostrar solo si no ha visto el modal en esta sesión
-    if (!sessionStorage.getItem('plec-bienvenida-vista')) {
-        setTimeout(function() {
-            var m = document.getElementById('modalBienvenida');
-            if (m) { m.style.display = 'flex'; m.classList.add('show'); }
-            document.body.style.overflow = 'hidden';
-        }, 300);
-    }
+    // Mostrar siempre al iniciar el sitio
+    setTimeout(function() {
+        var m = document.getElementById('modalBienvenida');
+        if (m) { m.style.display = 'flex'; m.classList.add('show'); }
+        document.body.style.overflow = 'hidden';
+    }, 300);
 
     // BOTÓN VOLVER ARRIBA
     const btnArriba = document.getElementById('btnArriba');
@@ -2705,25 +2694,6 @@ window.addEventListener('DOMContentLoaded', function() {
     });
     track.innerHTML = html + html; // duplicar para loop infinito
 });
-
-// ── CONTADOR REGRESIVO ────────────────────────────────────────────────────────
-(function initContador() {
-    const meta = new Date('2026-10-25T00:00:00'); // Fecha objetivo
-    function tick() {
-        const diff = meta - new Date();
-        if(diff <= 0) { document.querySelector('.contador-evento') && (document.querySelector('.contador-evento').textContent = '¡Ya llegó el día!'); return; }
-        const dias  = Math.floor(diff / 86400000);
-        const horas = Math.floor((diff % 86400000) / 3600000);
-        const mins  = Math.floor((diff % 3600000) / 60000);
-        const d = document.getElementById('cntDias');
-        const h = document.getElementById('cntHoras');
-        const m = document.getElementById('cntMins');
-        if(d) d.textContent = String(dias).padStart(2,'0');
-        if(h) h.textContent = String(horas).padStart(2,'0');
-        if(m) m.textContent = String(mins).padStart(2,'0');
-    }
-    tick(); setInterval(tick, 60000);
-})();
 
 // ── QR ────────────────────────────────────────────────────────────────────────
 function abrirQR(tituloEnc) {
