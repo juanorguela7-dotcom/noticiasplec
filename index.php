@@ -821,7 +821,7 @@ if (!empty($busqueda)) {
         #bannerTransmision {
             display: none;
             position: fixed;
-            bottom: 220px;
+            bottom: 216px;
             right: 30px;
             z-index: 9998;
             background: linear-gradient(135deg, #1a0000, #2a0505);
@@ -877,7 +877,9 @@ if (!empty($busqueda)) {
             transition: color 0.2s;
         }
         .banner-trans-cerrar:hover { color: #fff; }
-
+        @media (max-width: 600px) {
+            #bannerTransmision { bottom: 160px; right: 10px; max-width: 220px; }
+        }
 
         /* BOTÓN FLOTANTE TRANSMISIÓN EN VIVO */
         .btn-transmision-live {
@@ -920,26 +922,9 @@ if (!empty($busqueda)) {
             0%, 100% { box-shadow: 0 6px 20px rgba(255,0,0,0.45); }
             50% { box-shadow: 0 6px 30px rgba(255,0,0,0.75); }
         }
-        /* Ajuste responsivo del botón transmisión + banner (misma columna que .btn-arriba y .btn-revista-flotante) */
-        @media (max-width: 1024px) {
-            .btn-transmision-live { bottom: 150px; right: 20px; }
-            #bannerTransmision { bottom: 210px; right: 20px; max-width: 240px; }
-        }
-        @media (max-width: 768px) {
-            .btn-transmision-live { bottom: 135px; right: 15px; padding: 10px 16px; font-size: 11px; }
-            #bannerTransmision { bottom: 190px; right: 15px; max-width: 220px; }
-        }
-        @media (max-width: 650px) {
-            .btn-transmision-live { bottom: 125px; right: 12px; padding: 9px 14px; font-size: 10px; }
-            #bannerTransmision { bottom: 175px; right: 12px; max-width: 210px; }
-        }
-        @media (max-width: 480px) {
-            .btn-transmision-live { bottom: 115px; right: 10px; padding: 8px 12px; font-size: 10px; }
-            #bannerTransmision { bottom: 160px; right: 10px; max-width: 190px; }
-        }
-        @media (max-width: 360px) {
-            .btn-transmision-live { bottom: 100px; right: 5px; padding: 7px 10px; font-size: 9px; }
-            #bannerTransmision { bottom: 140px; right: 5px; max-width: 170px; }
+        /* Ajuste responsivo del botón transmisión */
+        @media (max-width: 600px) {
+            .btn-transmision-live { bottom: 95px; right: 10px; padding: 8px 12px; font-size: 10px; }
         }
         /* MODAL TRANSMISIÓN EN VIVO (index) */
         .modal-transmision-overlay {
@@ -1393,6 +1378,35 @@ if (!empty($busqueda)) {
         .ig-btn-dl { background:linear-gradient(45deg,#f09433,#dc2743,#bc1888); color:#fff; border:none; padding:8px 20px; border-radius:20px; cursor:pointer; font-size:12px; font-weight:bold; }
         .ig-btn-cerrar { background:none; border:1px solid #444; color:#aaa; padding:8px 20px; border-radius:20px; cursor:pointer; font-size:12px; }
 
+
+        /* ═══════════════════════════════════════════════════════════════
+           ALINEACIÓN FINAL DE BOTONES FLOTANTES (evita superposición)
+           Este bloque va al final a propósito: las reglas base de
+           .btn-arriba / .btn-transmision-live / #bannerTransmision están
+           escritas sin @media más abajo en el CSS y por eso "ganaban" en
+           móvil aunque hubiera media queries antes. Aquí se fija el orden
+           final: Revista (abajo) -> Arriba -> En Vivo -> Aviso (arriba).
+        ═══════════════════════════════════════════════════════════════ */
+        @media (max-width: 1024px) {
+            .btn-transmision-live { bottom: 155px; right: 20px; }
+            #bannerTransmision { bottom: 211px; right: 20px; }
+        }
+        @media (max-width: 768px) {
+            .btn-transmision-live { bottom: 133px; right: 15px; padding: 8px 14px; font-size: 10px; }
+            #bannerTransmision { bottom: 179px; right: 15px; max-width: 200px; }
+        }
+        @media (max-width: 650px) {
+            .btn-transmision-live { bottom: 126px; right: 12px; padding: 8px 12px; font-size: 10px; }
+            #bannerTransmision { bottom: 168px; right: 12px; max-width: 190px; }
+        }
+        @media (max-width: 480px) {
+            .btn-transmision-live { bottom: 116px; right: 10px; padding: 7px 10px; font-size: 9px; gap: 6px; }
+            #bannerTransmision { bottom: 154px; right: 10px; max-width: 175px; padding: 10px 30px 10px 12px; }
+        }
+        @media (max-width: 360px) {
+            .btn-transmision-live { bottom: 104px; right: 5px; padding: 6px 9px; font-size: 8px; gap: 5px; }
+            #bannerTransmision { bottom: 138px; right: 5px; max-width: 155px; }
+        }
     </style>
 </head>
 <body>
