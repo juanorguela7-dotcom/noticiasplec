@@ -1407,6 +1407,36 @@ if (!empty($busqueda)) {
             .btn-transmision-live { bottom: 104px; right: 5px; padding: 6px 9px; font-size: 8px; gap: 5px; }
             #bannerTransmision { bottom: 138px; right: 5px; max-width: 155px; }
         }
+
+        /* ═══════════════════════════════════════════════════════════════
+           REAGRUPAR FILA DE ICONOS DEL TOP-BAR EN MÓVIL
+           Antes: flex-direction:column ponía CADA elemento (redes, correo,
+           buscador, botón tema, botón contraste) en su propia fila entera,
+           por eso los botones circulares se veían regados y feos.
+           Ahora: redes+correo en una fila, buscador ocupa su propia fila
+           completa, y los 2 botones circulares quedan juntos como en PC.
+        ═══════════════════════════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            .top-bar > div:last-child {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+            }
+            .top-bar > div:last-child .social-icons,
+            .top-bar > div:last-child a[href^="mailto"],
+            .top-bar > div:last-child .btn-tema,
+            .top-bar > div:last-child .btn-accesibilidad {
+                flex: 0 0 auto;
+            }
+            .top-bar > div:last-child .search-box {
+                flex: 1 1 100%;
+                order: 3;
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
