@@ -1418,23 +1418,34 @@ if (!empty($busqueda)) {
         ═══════════════════════════════════════════════════════════════ */
         @media (max-width: 768px) {
             .top-bar > div:last-child {
-                display: flex;
-                flex-direction: row;
-                flex-wrap: wrap;
-                align-items: center;
-                justify-content: center;
-                gap: 10px;
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: wrap !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 10px !important;
             }
             .top-bar > div:last-child .social-icons,
             .top-bar > div:last-child a[href^="mailto"],
             .top-bar > div:last-child .btn-tema,
             .top-bar > div:last-child .btn-accesibilidad {
-                flex: 0 0 auto;
+                flex: 0 0 auto !important;
+                width: auto !important;
+                order: 0;
             }
             .top-bar > div:last-child .search-box {
-                flex: 1 1 100%;
-                order: 3;
-                width: 100%;
+                flex: 1 1 100% !important;
+                order: 3 !important;
+                width: 100% !important;
+            }
+        }
+        /* En pantallas muy angostas, oculta el texto del correo (deja solo el sobre) para que nada se corte */
+        @media (max-width: 480px) {
+            .top-bar > div:last-child a[href^="mailto"] {
+                font-size: 0 !important;
+            }
+            .top-bar > div:last-child a[href^="mailto"] i {
+                font-size: 16px !important;
             }
         }
     </style>
