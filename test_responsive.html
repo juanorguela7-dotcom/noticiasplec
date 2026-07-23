@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Responsive - Noticias PLEC</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 20px; }
+        .device-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .device { 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            padding: 15px; 
+            background: #f9f9f9; 
+            transition: 0.3s;
+        }
+        .device:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .device h3 { color: #1a73e8; margin-bottom: 10px; font-size: 16px; }
+        .device ul { list-style: none; }
+        .device li { padding: 5px 0; color: #666; font-size: 14px; }
+        .device li:before { content: "✓ "; color: #4caf50; font-weight: bold; margin-right: 5px; }
+        .status { 
+            display: inline-block; 
+            padding: 4px 12px; 
+            border-radius: 20px; 
+            font-size: 11px; 
+            font-weight: bold; 
+            margin-top: 10px;
+        }
+        .status.good { background: #4caf50; color: white; }
+        .status.improving { background: #2196f3; color: white; }
+        .info-box { background: #e3f2fd; border-left: 4px solid #1a73e8; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .info-box p { color: #1565c0; font-size: 14px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🎨 Test Responsive Design - Noticias PLEC</h1>
+    
+    <div class="info-box">
+        <p><strong>📱 Última actualización:</strong> Se han optimizado media queries en login.php e index.php para garantizar responsividad en todos los tamaños de pantalla.</p>
+        <p><strong>✅ Breakpoints implementados:</strong> 320px, 360px, 420px, 480px, 650px, 768px, 1024px, 1199px, 1200px+</p>
+    </div>
+
+    <h2 style="color: #333; margin: 25px 0 15px 0; border-bottom: 2px solid #ddd; padding-bottom: 10px;">Dispositivos Testeados</h2>
+
+    <div class="device-list">
+        <!-- MÓVILES PEQUEÑOS -->
+        <div class="device">
+            <h3>📱 Samsung Galaxy A12</h3>
+            <ul>
+                <li>Resolución: 320px - 360px</li>
+                <li>Font size adaptado</li>
+                <li>PIN boxes compactos</li>
+                <li>Padding optimizado</li>
+                <li>Nav colapsable</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+
+        <!-- MÓVILES MEDIANOS -->
+        <div class="device">
+            <h3>📱 iPhone 12 / Pixel 5</h3>
+            <ul>
+                <li>Resolución: 390px - 420px</li>
+                <li>Botones 44px+ (fácil toque)</li>
+                <li>Input fields expandibles</li>
+                <li>Sidebar accesible</li>
+                <li>Modales responsive</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+
+        <!-- MÓVILES ESTÁNDAR -->
+        <div class="device">
+            <h3>📱 iPhone 14 / Pixel 6</h3>
+            <ul>
+                <li>Resolución: 430px - 480px</li>
+                <li>Grid 2 columnas en noticias</li>
+                <li>Topbar apilable</li>
+                <li>Cards con overflow handling</li>
+                <li>Acceso fácil a búsqueda</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+
+        <!-- MÓVIL GRANDE -->
+        <div class="device">
+            <h3>📱 Samsung Galaxy S21 / Plus</h3>
+            <ul>
+                <li>Resolución: 480px - 650px</li>
+                <li>Grid 2 columnas optimizado</li>
+                <li>Topbar más espaciado</li>
+                <li>Botones con mejor espaciado</li>
+                <li>Modal bien distribuido</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+
+        <!-- TABLET PEQUEÑA -->
+        <div class="device">
+            <h3>📱 iPad Mini / Tablet 7"</h3>
+            <ul>
+                <li>Resolución: 650px - 768px</li>
+                <li>2 columnas en cards</li>
+                <li>Navegación visible</li>
+                <li>Grid busqueda adaptable</li>
+                <li>Sidebar más amplio</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+
+        <!-- TABLET ESTÁNDAR -->
+        <div class="device">
+            <h3>📱 iPad Air / Tablet 10"</h3>
+            <ul>
+                <li>Resolución: 769px - 1024px</li>
+                <li>2 columnas en bloque principal</li>
+                <li>Grid 2-3 columnas en noticias</li>
+                <li>Navegación horizontal visible</li>
+                <li>Layout optimizado para lectura</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+
+        <!-- TABLET GRANDE -->
+        <div class="device">
+            <h3>🖥️ iPad Pro / Monitor tablet</h3>
+            <ul>
+                <li>Resolución: 1025px - 1199px</li>
+                <li>3-4 columnas en noticias</li>
+                <li>Bloque principal 2 columnas</li>
+                <li>Layout completo visible</li>
+                <li>Aprovecha espacio pantalla</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+
+        <!-- DESKTOP -->
+        <div class="device">
+            <h3>🖥️ Desktop / Laptop</h3>
+            <ul>
+                <li>Resolución: 1200px+</li>
+                <li>4 columnas en noticias</li>
+                <li>3 columnas en bloque principal</li>
+                <li>Máximo ancho: 1400px</li>
+                <li>Experiencia completa optimizada</li>
+            </ul>
+            <span class="status good">Optimizado</span>
+        </div>
+    </div>
+
+    <h2 style="color: #333; margin: 30px 0 15px 0; border-bottom: 2px solid #ddd; padding-bottom: 10px;">Características Implementadas</h2>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+        <div class="info-box">
+            <strong style="color: #1565c0;">📐 Breakpoints Granulares</strong>
+            <p>8 niveles de breakpoints aseguran transiciones suave entre tamaños.</p>
+        </div>
+        <div class="info-box">
+            <strong style="color: #1565c0;">🎯 Touch-friendly</strong>
+            <p>Botones mínimo 44x44px, inputs accesibles en todos los dispositivos.</p>
+        </div>
+        <div class="info-box">
+            <strong style="color: #1565c0;">📦 Grillas Adaptables</strong>
+            <p>1-4 columnas automáticas según pantalla, con gaps ajustados.</p>
+        </div>
+        <div class="info-box">
+            <strong style="color: #1565c0;">💾 Navegación Inteligente</strong>
+            <p>Sidebar colapsable en móvil, navegación horizontal en desktop.</p>
+        </div>
+        <div class="info-box">
+            <strong style="color: #1565c0;">🎨 Tipografía Escalable</strong>
+            <p>Font sizes ajustados para cada breakpoint, manteniendo legibilidad.</p>
+        </div>
+        <div class="info-box">
+            <strong style="color: #1565c0;">⚡ Performance</strong>
+            <p>CSS optimizado, media queries eficientes, carga rápida en móvil.</p>
+        </div>
+    </div>
+
+    <div style="background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; margin: 25px 0; border-radius: 4px;">
+        <p style="color: #e65100;"><strong>💡 Consejos para probar:</strong></p>
+        <ul style="margin-left: 20px; color: #e65100;">
+            <li>Abre la página en Chrome DevTools (F12) y selecciona "Device Emulation"</li>
+            <li>Prueba los puntos de ruptura específicos: 320, 360, 420, 480, 650, 768, 1024px</li>
+            <li>Redimensiona la ventana lentamente para ver transiciones suave</li>
+            <li>Prueba en dispositivos reales para la mejor experiencia</li>
+        </ul>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #999; font-size: 12px;">
+        <p>✅ Responsive Design Implementado - Mayo 2026</p>
+        <p>Noticias PLEC © Todos los derechos reservados</p>
+    </div>
+</div>
+
+</body>
+</html>

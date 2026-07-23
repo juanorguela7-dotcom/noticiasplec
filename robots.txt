@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /conexion.php
+Disallow: /admin/
+Disallow: /includes/
+
+Sitemap: https://www.noticiasplec.com/sitemap.xml
