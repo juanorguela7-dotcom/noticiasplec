@@ -821,7 +821,7 @@ if (!empty($busqueda)) {
         #bannerTransmision {
             display: none;
             position: fixed;
-            bottom: 165px;
+            bottom: 220px;
             right: 30px;
             z-index: 9998;
             background: linear-gradient(135deg, #1a0000, #2a0505);
@@ -877,14 +877,12 @@ if (!empty($busqueda)) {
             transition: color 0.2s;
         }
         .banner-trans-cerrar:hover { color: #fff; }
-        @media (max-width: 600px) {
-            #bannerTransmision { bottom: 160px; right: 10px; max-width: 220px; }
-        }
+
 
         /* BOTÓN FLOTANTE TRANSMISIÓN EN VIVO */
         .btn-transmision-live {
             position: fixed;
-            bottom: 105px;
+            bottom: 160px;
             right: 30px;
             background: linear-gradient(135deg, #cc0000, #ff2222);
             color: white;
@@ -922,9 +920,26 @@ if (!empty($busqueda)) {
             0%, 100% { box-shadow: 0 6px 20px rgba(255,0,0,0.45); }
             50% { box-shadow: 0 6px 30px rgba(255,0,0,0.75); }
         }
-        /* Ajuste responsivo del botón transmisión */
-        @media (max-width: 600px) {
-            .btn-transmision-live { bottom: 95px; right: 10px; padding: 8px 12px; font-size: 10px; }
+        /* Ajuste responsivo del botón transmisión + banner (misma columna que .btn-arriba y .btn-revista-flotante) */
+        @media (max-width: 1024px) {
+            .btn-transmision-live { bottom: 150px; right: 20px; }
+            #bannerTransmision { bottom: 210px; right: 20px; max-width: 240px; }
+        }
+        @media (max-width: 768px) {
+            .btn-transmision-live { bottom: 135px; right: 15px; padding: 10px 16px; font-size: 11px; }
+            #bannerTransmision { bottom: 190px; right: 15px; max-width: 220px; }
+        }
+        @media (max-width: 650px) {
+            .btn-transmision-live { bottom: 125px; right: 12px; padding: 9px 14px; font-size: 10px; }
+            #bannerTransmision { bottom: 175px; right: 12px; max-width: 210px; }
+        }
+        @media (max-width: 480px) {
+            .btn-transmision-live { bottom: 115px; right: 10px; padding: 8px 12px; font-size: 10px; }
+            #bannerTransmision { bottom: 160px; right: 10px; max-width: 190px; }
+        }
+        @media (max-width: 360px) {
+            .btn-transmision-live { bottom: 100px; right: 5px; padding: 7px 10px; font-size: 9px; }
+            #bannerTransmision { bottom: 140px; right: 5px; max-width: 170px; }
         }
         /* MODAL TRANSMISIÓN EN VIVO (index) */
         .modal-transmision-overlay {
