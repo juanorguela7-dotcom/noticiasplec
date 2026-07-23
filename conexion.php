@@ -1,11 +1,12 @@
 <?php
-$host = "localhost";
-$user = "root";
-$password = "";
-$db = "noticias_plec";
+$host     = getenv('MYSQLHOST')     ?: 'localhost';
+$user     = getenv('MYSQLUSER')     ?: 'root';
+$password = getenv('MYSQLPASSWORD') ?: '';
+$db       = getenv('MYSQLDATABASE') ?: 'noticias_plec';
+$port     = getenv('MYSQLPORT')     ?: '3306';
 
-// Conexión procedimental correcta para que sea compatible con index.php
-$conn = mysqli_connect($host, $user, $password, $db);
+// Conexión procedimental adaptada para Railway y XAMPP
+$conn = mysqli_connect($host, $user, $password, $db, (int)$port);
 
 if (!$conn) {
     die("Error de conexión: " . mysqli_connect_error());
