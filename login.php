@@ -509,6 +509,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$bloqueado) {
             </button>
         </form>
 
+        <button type="button" id="btnHuella" class="btn-login" style="display:none; margin-top:10px; background:#222; border:1px solid #333;">
+            <i class="fas fa-fingerprint me-2"></i> Entrar con huella / Face ID
+        </button>
+        <div id="mensajeHuella" style="margin-top:8px; font-size:12px; text-align:center;"></div>
+
         <div class="seguridad-info">
             <i class="fas fa-shield-alt"></i>
             Acceso protegido · Sesión cifrada · Noticias PLEC <?php echo date('Y'); ?>
@@ -569,6 +574,78 @@ const interval = setInterval(() => {
     }
 }, 1000);
 <?php endif; ?>
+
+// ── ACCESO CON HUELLA / FACE ID (WebAuthn) ──
+const btnHuella = document.getElementById('btnHuella');
+const mensajeHuella = document.getElementById('mensajeHuella');
+
+// Solo mostrar el botón si el navegador soporta WebAuthn
+if (window.PublicKeyCredential) {
+    btnHuella.style.display = 'block';
+}
+
+function bufferDecode(value) {
+    value = value.replace(/-/g, '+').replace(/_/g, '/');
+    while (value.length % 4) value += '=';
+    return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+}
+function bufferEncode(buffer) {
+    let binario = '';
+    const bytes = new Uint8Array(buffer);
+    for (let b of bytes) binario += String.fromCharCode(b);
+    return btoa(binario).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+btnHuella.addEventListener('click', async function() {
+    mensajeHuella.textContent = '';
+    mensajeHuella.style.color = '#999';
+    mensajeHuella.textContent = 'Esperando huella...';
+
+    // El usuario puede (opcionalmente) escribir su nombre de usuario antes de tocar el sensor.
+    // Si lo deja vacío, el propio sistema operativo le muestra qué cuenta usar.
+    const usuario = document.querySelector('input[name="usuario"]').value || '';
+
+    try {
+        const resp = await fetch('webauthn-login-begin.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ usuario: usuario })
+        });
+        const options = await resp.json();
+        if (options.error) throw new Error(options.error);
+
+        const publicKey = options.publicKey;
+        publicKey.challenge = bufferDecode(publicKey.challenge);
+        if (publicKey.allowCredentials) {
+            publicKey.allowCredentials = publicKey.allowCredentials.map(c => ({
+                ...c, id: bufferDecode(c.id)
+            }));
+        }
+
+        const assertion = await navigator.credentials.get({ publicKey });
+
+        const resp2 = await fetch('webauthn-login-finish.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                credentialId: bufferEncode(assertion.rawId),
+                clientDataJSON: bufferEncode(assertion.response.clientDataJSON),
+                authenticatorData: bufferEncode(assertion.response.authenticatorData),
+                signature: bufferEncode(assertion.response.signature)
+            })
+        });
+        const resultado = await resp2.json();
+        if (resultado.error) throw new Error(resultado.error);
+
+        mensajeHuella.style.color = '#2ecc71';
+        mensajeHuella.textContent = '✅ Acceso correcto, entrando...';
+        window.location.href = resultado.redirect;
+
+    } catch (err) {
+        mensajeHuella.style.color = '#ff6b6b';
+        mensajeHuella.textContent = 'No se pudo entrar con huella: ' + err.message;
+    }
+});
 </script>
 
 </body>
