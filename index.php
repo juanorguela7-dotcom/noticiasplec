@@ -9,6 +9,7 @@ include("conexion.php");
 
 $categoria_id = isset($_GET['cat']) ? intval($_GET['cat']) : 0;
 $busqueda = isset($_GET['s']) ? mysqli_real_escape_string($conn, $_GET['s']) : '';
+$noticia_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 $esta_filtrando = ($categoria_id > 0 || !empty($busqueda));
 
@@ -35,6 +36,25 @@ if ($categoria_id > 0 && isset($conn)) {
 if (!empty($busqueda)) {
     $seo_titulo = "Búsqueda: " . htmlspecialchars($busqueda) . " - Noticias PLEC";
     $seo_desc   = 'Resultados de búsqueda para "' . htmlspecialchars($busqueda) . '" en Noticias PLEC.';
+}
+
+$noticia_seo = null;
+if ($noticia_id > 0 && isset($conn)) {
+    $stmt_n = mysqli_prepare($conn, "SELECT n.*, c.nombre as cat_nombre FROM noticias n LEFT JOIN categorias c ON n.categoria_id = c.id WHERE n.id = ? LIMIT 1");
+    mysqli_stmt_bind_param($stmt_n, "i", $noticia_id);
+    mysqli_stmt_execute($stmt_n);
+    $res_n = mysqli_stmt_get_result($stmt_n);
+    $noticia_seo = $res_n ? mysqli_fetch_assoc($res_n) : null;
+    mysqli_stmt_close($stmt_n);
+
+    if ($noticia_seo) {
+        $img_seo_rel   = (empty($noticia_seo['imagen'])) ? "img/placeholder.svg" : ((strpos($noticia_seo['imagen'], 'img/') === 0) ? $noticia_seo['imagen'] : "img/" . $noticia_seo['imagen']);
+        $texto_plano_n = trim(strip_tags($noticia_seo['contenido']));
+        $seo_titulo = htmlspecialchars($noticia_seo['titulo']) . " - Noticias PLEC";
+        $seo_desc   = htmlspecialchars(mb_substr($texto_plano_n, 0, 160)) . (mb_strlen($texto_plano_n) > 160 ? "..." : "");
+        $seo_imagen = (strpos($img_seo_rel, 'http') === 0) ? $img_seo_rel : $dominio . "/" . ltrim($img_seo_rel, "/");
+        $seo_url    = $dominio . "/index.php?id=" . $noticia_id;
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -2356,7 +2376,7 @@ function abrirModal(t, i, c, v, id) {
     id = id || '';
     const textoPlano = c.replace(/<[^>]*>/g,'');
     const urlNoticia = id
-        ? 'https://noticiasplec-production.up.railway.app/noticia.php?id=' + id
+        ? 'https://noticiasplec-production.up.railway.app/index.php?id=' + id
         : 'https://noticiasplec-production.up.railway.app';
     const urlPagina = encodeURIComponent(urlNoticia);
     const urlCompartirWA = encodeURIComponent('📰 ' + t + ' — Noticias PLEC: ' + urlNoticia);
@@ -2774,6 +2794,18 @@ function descargarIG() {
     a.click();
 }
 document.getElementById('modalIG').addEventListener('click', function(e){ if(e.target===this) cerrarIG(); });
+
+<?php if ($noticia_id > 0 && $noticia_seo): ?>
+window.addEventListener('DOMContentLoaded', function() {
+    abrirModal(
+        <?php echo json_encode($noticia_seo['titulo']); ?>,
+        <?php echo json_encode($img_seo_rel); ?>,
+        <?php echo json_encode($noticia_seo['contenido']); ?>,
+        <?php echo json_encode($noticia_seo['video_url'] ?? ''); ?>,
+        <?php echo json_encode($noticia_id); ?>
+    );
+});
+<?php endif; ?>
 </script>
 </body>
 </html>
