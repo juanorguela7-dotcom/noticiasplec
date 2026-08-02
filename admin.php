@@ -485,12 +485,13 @@ if (isset($_GET['borrar']) && isset($_GET['token'])) {
                             <thead>
                                 <tr>
                                     <th class="ps-4">Noticia / Columna / Editorial</th>
+                                    <th class="text-center" style="width:110px;"><i class="fas fa-eye me-1"></i> Vistas</th>
                                     <th class="text-end pe-4">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="noticias-tabla">
                                 <?php
-                                $sql = "SELECT n.id, n.titulo, c.nombre as cat_nombre, c.id as cat_id FROM noticias n LEFT JOIN categorias c ON n.categoria_id = c.id ORDER BY n.id DESC";
+                                $sql = "SELECT n.id, n.titulo, n.vistas, c.nombre as cat_nombre, c.id as cat_id FROM noticias n LEFT JOIN categorias c ON n.categoria_id = c.id ORDER BY n.id DESC";
                                 $res = mysqli_query($conn, $sql);
                                 $count = 0;
                                 while($f = mysqli_fetch_assoc($res)){ 
@@ -502,6 +503,11 @@ if (isset($_GET['borrar']) && isset($_GET['token'])) {
                                         <td class="ps-4">
                                             <div class="fw-bold"><?php echo $f['titulo']; ?></div>
                                             <span style="font-size:11px; font-weight:bold; padding:2px 8px; border-radius:20px; <?php echo $badge_style; ?>"><?php echo $cat_label; ?></span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark border" style="font-size:12px;">
+                                                <i class="fas fa-eye me-1 text-muted"></i><?php echo number_format(intval($f['vistas'] ?? 0)); ?>
+                                            </span>
                                         </td>
                                         <td class="text-end pe-4">
                                             <div class="btn-group">
