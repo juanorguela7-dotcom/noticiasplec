@@ -18,7 +18,7 @@ $total = ($res_total) ? intval(mysqli_fetch_assoc($res_total)['total']) : 0;
 
 // Traer columnistas paginados
 $stmt = mysqli_prepare($conn,
-    "SELECT titulo, contenido, imagen, COALESCE(video_url, '') AS video_url FROM noticias WHERE categoria_id = 13 ORDER BY id DESC LIMIT ? OFFSET ?"
+    "SELECT id, titulo, contenido, imagen, COALESCE(video_url, '') AS video_url FROM noticias WHERE categoria_id = 13 ORDER BY id DESC LIMIT ? OFFSET ?"
 );
 mysqli_stmt_bind_param($stmt, "ii", $limit, $offset);
 mysqli_stmt_execute($stmt);
@@ -35,6 +35,7 @@ if ($res) {
             $img = 'img/' . $img;
         }
         $items[] = [
+            'id'        => $row['id'],
             'titulo'    => $row['titulo'],
             'contenido' => $row['contenido'],
             'imagen'    => $img,

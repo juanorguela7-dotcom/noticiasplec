@@ -1862,7 +1862,7 @@ function cerrarBienvenida() {
                     $es_inclusion = (isset($row['categoria_id']) && $row['categoria_id'] == 16);
                     $cls_inc = $es_inclusion ? ' inclusion' : '';
                     ?>
-                    <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($row['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>)">
+                    <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($row['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                         <div class='img-box' style="height:180px;"><img src='<?php echo $img; ?>' loading="lazy"></div>
                         <div class='info-card'>
                             <span class='cat-tag<?php echo $cls_inc; ?>'><?php echo isset($row['cat_nombre']) ? htmlspecialchars($row['cat_nombre']) : 'General'; ?></span>
@@ -1919,7 +1919,7 @@ function cerrarBienvenida() {
                             $img = obtenerRutaImagen($noticias_top[$i]['imagen']);
                             $txt_res = substr(strip_tags($noticias_top[$i]['contenido']), 0, 110) . "...";
                         ?>
-                            <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>)">
+                            <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                                 <div class='img-box'><img src='<?php echo $img; ?>'></div>
                                 <div class='info-card'>
                                     <span class='cat-tag'><?php echo htmlspecialchars($noticias_top[$i]['cat_nombre']); ?></span>
@@ -1937,7 +1937,7 @@ function cerrarBienvenida() {
                             $txt_res_c = substr(strip_tags($noticias_top[0]['contenido']), 0, 220) . "...";
                             $es_nuevo_c = (intval($noticias_top[0]['horas_publicada']) <= 48);
                         ?>
-                        <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[0]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img_c), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>)">
+                        <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[0]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img_c), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                             <div class='img-box' style="position:relative;">
                                 <img src='<?php echo $img_c; ?>'>
                                 <?php if($es_nuevo_c): ?><span class='badge-nuevo badge-nuevo-lg'><i class="fas fa-bolt"></i> NUEVO</span><?php endif; ?>
@@ -1957,7 +1957,7 @@ function cerrarBienvenida() {
                             $txt_res = substr(strip_tags($noticias_top[$i]['contenido']), 0, 110) . "...";
                             $es_nuevo_l = (intval($noticias_top[$i]['horas_publicada']) <= 48);
                         ?>
-                            <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>)">
+                            <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                                 <div class='img-box' style="position:relative;">
                                     <img src='<?php echo $img; ?>'>
                                     <?php if($es_nuevo_l): ?><span class='badge-nuevo'><i class="fas fa-bolt"></i> NUEVO</span><?php endif; ?>
@@ -2036,7 +2036,7 @@ function cerrarBienvenida() {
                         $es_nuevo = (intval($row_sec['horas_publicada']) <= $horas_nuevo);
                         $cls_inc = ($id_cat == 16) ? ' inclusion' : '';
                         ?>
-                        <div class='card card-seccion' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($row_sec['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>)">
+                        <div class='card card-seccion' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($row_sec['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                             <div class='img-box' style="position:relative;">
                                 <img src='<?php echo $img; ?>' loading="lazy">
                                 <?php if($es_nuevo): ?>
@@ -2080,7 +2080,7 @@ function cerrarBienvenida() {
                             $r_edi = mysqli_fetch_assoc($res_edi);
                             $img_edi = obtenerRutaImagen($r_edi['imagen']);
                             ?>
-                            <div onclick="abrirModal(<?php echo htmlspecialchars(json_encode($r_edi['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img_edi), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>)" style="cursor:pointer;">
+                            <div onclick="abrirModal(<?php echo htmlspecialchars(json_encode($r_edi['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img_edi), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['id']), ENT_QUOTES, 'UTF-8'); ?>)" style="cursor:pointer;">
                                 <h3><?php echo htmlspecialchars($r_edi['titulo']); ?></h3>
                                 <p class='resumen-text' style="color:#aaa;"><?php echo htmlspecialchars(substr(strip_tags($r_edi['contenido']), 0, 180)) . "..."; ?></p>
                             </div>
@@ -2106,7 +2106,7 @@ function cerrarBienvenida() {
                                 $tit_col = $col_data['titulo'];
                                 $cont_col = $col_data['contenido'];
                                 ?>
-                                <div class="columnista-item" onclick="abrirModal(<?php echo htmlspecialchars(json_encode($tit_col), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($foto_columnista), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($cont_col), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($col_data['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>)" style="cursor:pointer;">
+                                <div class="columnista-item" onclick="abrirModal(<?php echo htmlspecialchars(json_encode($tit_col), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($foto_columnista), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($cont_col), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($col_data['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($col_data['id']), ENT_QUOTES, 'UTF-8'); ?>)" style="cursor:pointer;">
                                     <img src="<?php echo $foto_columnista; ?>" class="columnista-avatar" onerror="this.src='img/avatar.png'">
                                     <div class="columnista-info">
                                         <h4><?php echo htmlspecialchars($tit_col); ?></h4>
@@ -2351,12 +2351,16 @@ function plecVideoEmbed(url) {
     </div>`;
 }
 
-function abrirModal(t, i, c, v) {
+function abrirModal(t, i, c, v, id) {
     v = v || '';
+    id = id || '';
     const textoPlano = c.replace(/<[^>]*>/g,'');
-    const urlPagina = encodeURIComponent('https://noticiasplec-production.up.railway.app');
-    const urlCompartirWA = encodeURIComponent('📰 ' + t + ' — Noticias PLEC: https://noticiasplec-production.up.railway.app');
-    const urlCompartirTG = encodeURIComponent('https://noticiasplec-production.up.railway.app') + '&text=' + encodeURIComponent('📰 ' + t + ' — Noticias PLEC');
+    const urlNoticia = id
+        ? 'https://noticiasplec-production.up.railway.app/noticia.php?id=' + id
+        : 'https://noticiasplec-production.up.railway.app';
+    const urlPagina = encodeURIComponent(urlNoticia);
+    const urlCompartirWA = encodeURIComponent('📰 ' + t + ' — Noticias PLEC: ' + urlNoticia);
+    const urlCompartirTG = encodeURIComponent(urlNoticia) + '&text=' + encodeURIComponent('📰 ' + t + ' — Noticias PLEC');
     const favKey = 'fav_' + btoa(unescape(encodeURIComponent(t))).substring(0,20);
     const yaGuardado = localStorage.getItem(favKey);
     const videoHtml = plecVideoEmbed(v);
@@ -2644,7 +2648,7 @@ function renderOpinionModal(total) {
         return;
     }
     grid.innerHTML = opinionData.map(col=>`
-        <div class="opinion-card" onclick="abrirModal(${JSON.stringify(col.titulo)}, ${JSON.stringify(col.imagen)}, ${JSON.stringify(col.contenido)}, ${JSON.stringify(col.video_url || "")})">
+        <div class="opinion-card" onclick="abrirModal(${JSON.stringify(col.titulo)}, ${JSON.stringify(col.imagen)}, ${JSON.stringify(col.contenido)}, ${JSON.stringify(col.video_url || "")}, ${JSON.stringify(col.id || "")})">
             <img src="${col.imagen}" class="opinion-avatar" onerror="this.src='img/avatar.png'">
             <div class="opinion-info">
                 <h4>${col.titulo}</h4>
