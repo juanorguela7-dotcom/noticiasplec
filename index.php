@@ -445,6 +445,10 @@ if ($noticia_id > 0 && isset($conn)) {
         /* CABECERA DE SECCIÓN CON VER MÁS */
         .seccion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 8px; }
         .sec-contador { font-size: 11px; color: #555; font-weight: bold; background: #1e1e1e; border: 1px solid #2a2a2a; padding: 3px 10px; border-radius: 20px; }
+        .badge-vistas { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #888; font-weight: 600; margin-left: 8px; }
+        .badge-vistas i { color: #555; }
+        #modalVistas { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #999; font-weight: 600; }
+        #modalVistas i { color: var(--azul); }
         /* BOTÓN VER MÁS */
         .btn-ver-mas { 
             font-size: 11px; 
@@ -1734,6 +1738,17 @@ function cerrarBienvenida() {
         return (strpos($img_db, 'img/') === 0) ? $img_db : "img/" . $img_db;
     }
 
+    // ── BADGE DE VISTAS (contador de visitas por noticia) ──
+    function badgeVistas($vistas) {
+        $n = intval($vistas ?? 0);
+        if ($n >= 1000) {
+            $txt = number_format($n / 1000, 1) . "k";
+        } else {
+            $txt = number_format($n);
+        }
+        return "<span class='badge-vistas'><i class=\"fas fa-eye\"></i> {$txt}</span>";
+    }
+
     // ── FUNCIÓN PARA RENDERIZAR PAGINACIÓN ──
     function renderPaginacion($pagina_actual, $total_paginas, $params_base) {
         if ($total_paginas <= 1) return;
@@ -1886,6 +1901,7 @@ function cerrarBienvenida() {
                         <div class='img-box' style="height:180px;"><img src='<?php echo $img; ?>' loading="lazy"></div>
                         <div class='info-card'>
                             <span class='cat-tag<?php echo $cls_inc; ?>'><?php echo isset($row['cat_nombre']) ? htmlspecialchars($row['cat_nombre']) : 'General'; ?></span>
+                            <?php echo badgeVistas($row['vistas'] ?? 0); ?>
                             <h4><?php echo $titulo_hl; ?></h4>
                             <p class='resumen-text' style="font-size:13px;"><?php echo $resumen_hl; ?></p>
                         </div>
@@ -1943,6 +1959,7 @@ function cerrarBienvenida() {
                                 <div class='img-box'><img src='<?php echo $img; ?>'></div>
                                 <div class='info-card'>
                                     <span class='cat-tag'><?php echo htmlspecialchars($noticias_top[$i]['cat_nombre']); ?></span>
+                                    <?php echo badgeVistas($noticias_top[$i]['vistas'] ?? 0); ?>
                                     <h3><?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?></h3>
                                     <p class='resumen-text'><?php echo htmlspecialchars($txt_res); ?></p>
                                 </div>
@@ -1964,6 +1981,7 @@ function cerrarBienvenida() {
                             </div>
                             <div class='info-card'>
                                 <span class='cat-tag'><?php echo htmlspecialchars($noticias_top[0]['cat_nombre']); ?></span>
+                                <?php echo badgeVistas($noticias_top[0]['vistas'] ?? 0); ?>
                                 <h2><?php echo htmlspecialchars($noticias_top[0]['titulo']); ?></h2>
                                 <p class='resumen-text' style="font-size:15px;"><?php echo htmlspecialchars($txt_res_c); ?></p>
                             </div>
@@ -1984,6 +2002,7 @@ function cerrarBienvenida() {
                                 </div>
                                 <div class='info-card'>
                                     <span class='cat-tag'><?php echo htmlspecialchars($noticias_top[$i]['cat_nombre']); ?></span>
+                                    <?php echo badgeVistas($noticias_top[$i]['vistas'] ?? 0); ?>
                                     <h3><?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?></h3>
                                     <p class='resumen-text'><?php echo htmlspecialchars($txt_res); ?></p>
                                 </div>
@@ -2065,6 +2084,7 @@ function cerrarBienvenida() {
                             </div>
                             <div class='info-card'>
                                 <span class='cat-tag<?php echo $cls_inc; ?>'><?php echo htmlspecialchars($row_sec['cat_nombre']); ?></span>
+                                <?php echo badgeVistas($row_sec['vistas'] ?? 0); ?>
                                 <h4><?php echo htmlspecialchars($row_sec['titulo']); ?></h4>
                                 <p class='resumen-text' style="font-size:12px;"><?php echo htmlspecialchars($txt_res); ?></p>
                                 <span class='fecha-noticia'>
@@ -2386,6 +2406,9 @@ function abrirModal(t, i, c, v, id) {
     const videoHtml = plecVideoEmbed(v);
     document.getElementById('modalBody').innerHTML = `
         <h1 style="color:#fff; font-family:'Playfair Display';">${t}</h1>
+        <div style="margin:-8px 0 10px;">
+            <span id="modalVistas"><i class="fas fa-eye"></i> <span id="modalVistasNum">…</span> vistas</span>
+        </div>
         <img src="${i}" style="width:100%; border-radius:8px; margin:20px 0;">
         <div style="color:#ccc; line-height:1.7; font-size:18px;" id="modalContenidoTexto">${c}</div>
         ${videoHtml}
@@ -2411,6 +2434,25 @@ function abrirModal(t, i, c, v, id) {
         </div>`;
     document.getElementById('miModal').style.display = "block";
     registrarClick(t);
+    registrarVistaReal(id);
+}
+
+// ── CONTADOR DE VISITAS REAL (guardado en la base de datos) ──
+function registrarVistaReal(id) {
+    const numEl = document.getElementById('modalVistasNum');
+    if (!id) { if (numEl) numEl.textContent = '0'; return; }
+    fetch('contar_vista.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'id=' + encodeURIComponent(id)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (numEl && data && data.ok) {
+            numEl.textContent = new Intl.NumberFormat('es-CO').format(data.vistas);
+        }
+    })
+    .catch(() => { if (numEl) numEl.textContent = '—'; });
 }
 function cerrarModal() { document.getElementById('miModal').style.display = "none"; }
 
