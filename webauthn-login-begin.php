@@ -45,9 +45,5 @@ try {
 
 $_SESSION['webauthn_challenge'] = $WebAuthn->getChallenge();
 
-// Convertimos manualmente los ByteBuffer a base64url antes de enviarlos,
-// para evitar el formato raro que puede dar la serialización automática.
-$getArgs = passkey_a_texto_plano($getArgs);
-
 header('Content-Type: application/json');
 echo json_encode($getArgs);

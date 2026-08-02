@@ -27,7 +27,7 @@ try {
     );
 
     $admin_id      = intval($_SESSION['admin_id']);
-    $credential_id = $data->credentialId->getBase64Url();
+    $credential_id = rtrim(strtr(base64_encode($data->credentialId->getBinaryString()), '+/', '-_'), '=');
     $public_key    = $data->credentialPublicKey;
     $sign_count    = $data->signatureCounter ?? 0;
     $nombre_disp   = isset($body->nombreDispositivo)

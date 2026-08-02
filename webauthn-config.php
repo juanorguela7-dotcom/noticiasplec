@@ -4,6 +4,12 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+// ── IMPORTANTE ──
+// Por defecto la librería serializa los "ByteBuffer" (challenge, ids, etc.)
+// en un formato raro tipo "=?BINARY?B?...?=". Activando esto, los serializa
+// como texto base64url normal, que es justo lo que espera el navegador.
+\lbuchs\WebAuthn\Binary\ByteBuffer::$useBase64UrlEncoding = true;
+
 // ── SESIÓN SEGURA: igual que en login.php, debe ir antes de session_start() ──
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Strict');
@@ -26,27 +32,4 @@ function passkey_error($mensaje, $codigo = 400) {
     header('Content-Type: application/json');
     echo json_encode(['error' => $mensaje]);
     exit();
-}
-
-// Convierte de forma manual cualquier ByteBuffer que venga dentro de la
-// estructura a un simple string base64url. Esto evita depender de cómo
-// la librería serializa esos objetos internamente (que en algunos entornos
-// puede dar un formato raro tipo "=?BINARY?B?...?=" en vez de texto plano).
-function passkey_a_texto_plano($valor) {
-    if ($valor instanceof \lbuchs\WebAuthn\Binary\ByteBuffer) {
-        return $valor->getBase64Url();
-    }
-    if (is_array($valor)) {
-        foreach ($valor as $k => $v) {
-            $valor[$k] = passkey_a_texto_plano($v);
-        }
-        return $valor;
-    }
-    if ($valor instanceof \stdClass) {
-        foreach ($valor as $k => $v) {
-            $valor->$k = passkey_a_texto_plano($v);
-        }
-        return $valor;
-    }
-    return $valor;
 }
