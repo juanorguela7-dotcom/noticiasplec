@@ -41,5 +41,9 @@ if (!empty($excluir) && isset($createArgs->publicKey)) {
 // Guardamos el reto y el objeto WebAuthn en sesión para verificarlo en el paso 2
 $_SESSION['webauthn_challenge'] = $WebAuthn->getChallenge();
 
+// Convertimos manualmente los ByteBuffer a base64url antes de enviarlos,
+// para evitar el formato raro que puede dar la serialización automática.
+$createArgs = passkey_a_texto_plano($createArgs);
+
 header('Content-Type: application/json');
 echo json_encode($createArgs);
