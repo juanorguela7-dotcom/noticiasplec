@@ -4,12 +4,6 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-// ── IMPORTANTE ──
-// Por defecto la librería serializa los "ByteBuffer" (challenge, ids, etc.)
-// en un formato raro tipo "=?BINARY?B?...?=". Activando esto, los serializa
-// como texto base64url normal, que es justo lo que espera el navegador.
-\lbuchs\WebAuthn\Binary\ByteBuffer::$useBase64UrlEncoding = true;
-
 // ── SESIÓN SEGURA: igual que en login.php, debe ir antes de session_start() ──
 ini_set('session.cookie_httponly', 1);
 ini_set('session.cookie_samesite', 'Strict');
@@ -24,7 +18,14 @@ include(__DIR__ . '/conexion.php');
 // En Railway normalmente es algo como "tuapp.up.railway.app" o tu dominio propio.
 $rpId = explode(':', $_SERVER['HTTP_HOST'])[0];
 
-$WebAuthn = new \lbuchs\WebAuthn\WebAuthn('Noticias PLEC', $rpId);
+// ── IMPORTANTE (CORRECCIÓN) ──
+// En versiones actuales de la librería, "useBase64UrlEncoding" ya NO es una
+// propiedad estática de ByteBuffer (eso es de documentación vieja). Ahora es
+// el 4º parámetro del constructor de WebAuthn. Si no se pasa aquí, la
+// librería serializa el challenge en un formato tipo "=?BINARY?B?...?="
+// que el navegador no puede decodificar con atob(), y por eso fallaba
+// el login/registro con huella.
+$WebAuthn = new \lbuchs\WebAuthn\WebAuthn('Noticias PLEC', $rpId, null, true);
 
 // Respuesta JSON estándar de error, para no repetir código
 function passkey_error($mensaje, $codigo = 400) {
