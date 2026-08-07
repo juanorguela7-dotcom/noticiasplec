@@ -48,7 +48,7 @@ if ($noticia_id > 0 && isset($conn)) {
     mysqli_stmt_close($stmt_n);
 
     if ($noticia_seo) {
-        $img_seo_rel   = (empty($noticia_seo['imagen'])) ? "img/placeholder.svg" : ((strpos($noticia_seo['imagen'], 'img/') === 0) ? $noticia_seo['imagen'] : "img/" . $noticia_seo['imagen']);
+        $img_seo_rel   = (empty($noticia_seo['imagen'])) ? "img/logo-plec.jpg" : ((strpos($noticia_seo['imagen'], 'img/') === 0) ? $noticia_seo['imagen'] : "img/" . $noticia_seo['imagen']);
         $texto_plano_n = trim(strip_tags($noticia_seo['contenido']));
         $seo_titulo = htmlspecialchars($noticia_seo['titulo']) . " - Noticias PLEC";
         $seo_desc   = htmlspecialchars(mb_substr($texto_plano_n, 0, 160)) . (mb_strlen($texto_plano_n) > 160 ? "..." : "");
