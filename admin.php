@@ -45,12 +45,24 @@ $csrf_token = $_SESSION['csrf_token'];
 
 // Borrar noticia (solo si el token es válido)
 if (isset($_GET['borrar']) && isset($_GET['token'])) {
-    if ($_GET['token'] === $_SESSION['csrf_token']) {
+    if (hash_equals($_SESSION['csrf_token'], (string)$_GET['token'])) {
         $id = intval($_GET['borrar']);
         mysqli_query($conn, "DELETE FROM noticias WHERE id = $id");
     }
     header("Location: admin.php");
     exit();
+}
+
+// ── Estado actual de la transmisión en vivo (tabla `configuracion`) ──
+$stream_admin = ['activo' => false, 'url' => '', 'embed' => '', 'titulo' => ''];
+try {
+    $res_stream = mysqli_query($conn, "SELECT clave, valor FROM configuracion WHERE clave IN ('stream_url','stream_embed','stream_titulo','stream_activo')");
+    while ($res_stream && $fila_s = mysqli_fetch_assoc($res_stream)) {
+        $k = str_replace('stream_', '', $fila_s['clave']);
+        $stream_admin[$k] = ($k === 'activo') ? ($fila_s['valor'] === '1') : (string)$fila_s['valor'];
+    }
+} catch (Throwable $e) {
+    // La tabla aún no existe: se crea la primera vez que se guarda una transmisión
 }
 ?>
 <!DOCTYPE html>
@@ -716,7 +728,7 @@ if (isset($_GET['borrar']) && isset($_GET['token'])) {
                 <button type="button" id="btnDetenerTrans" class="btn btn-outline-warning btn-sm" onclick="detenerTransmision()" style="display:none;">
                     <i class="fas fa-stop me-1"></i> Detener
                 </button>
-                <button type="button" class="btn btn-danger" onclick="abrirTransmision()">
+                <button type="button" class="btn btn-danger" id="btnActivarTrans" onclick="abrirTransmision()">
                     <i class="fas fa-play me-1"></i> Ver Transmisión
                 </button>
             </div>
@@ -804,22 +816,29 @@ function validarURLVideo(url) {
     // Validación desactivada — acepta cualquier URL
 }
 
+// ── ESTADO DE LA TRANSMISIÓN (viene de la BD, tabla `configuracion`) ──
+let PLEC_STREAM = <?php echo json_encode($stream_admin, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?>;
+const PLEC_CSRF = <?php echo json_encode($csrf_token); ?>;
+
+function guardarStreamServidor(datos) {
+    const form = new FormData();
+    form.append('ajax', '1');
+    form.append('csrf', PLEC_CSRF);
+    Object.keys(datos).forEach(k => form.append(k, datos[k]));
+    return fetch('guardar_stream.php', { method: 'POST', body: form, credentials: 'same-origin' })
+        .then(r => r.json().catch(() => ({ ok: false, mensaje: 'Respuesta inválida del servidor.' })));
+}
+
 // ── MOSTRAR MODAL TRANSMISIONES ──
 function mostrarModalTransmisiones() {
-    // Verificar si hay transmisión activa en localStorage
-    const activa = localStorage.getItem('plec-transmision-activa');
-    const urlGuardada = localStorage.getItem('plec-transmision-url');
-    const embedGuardada = localStorage.getItem('plec-transmision-embed');
-    const tituloGuardado = localStorage.getItem('plec-transmision-titulo');
-
-    if (activa && urlGuardada) {
-        document.getElementById('urlTransmision').value = urlGuardada;
-        if (tituloGuardado) document.getElementById('tituloTransmision').value = tituloGuardado;
+    if (PLEC_STREAM.activo && PLEC_STREAM.url) {
+        document.getElementById('urlTransmision').value = PLEC_STREAM.url;
+        if (PLEC_STREAM.titulo) document.getElementById('tituloTransmision').value = PLEC_STREAM.titulo;
         document.getElementById('estadoTransmision').style.display = 'flex';
         document.getElementById('btnDetenerTrans').style.display = 'inline-block';
         // Mostrar preview automáticamente
         document.getElementById('previewTransmision').style.display = 'block';
-        document.getElementById('iframeTransmision').src = embedGuardada;
+        document.getElementById('iframeTransmision').src = PLEC_STREAM.embed;
     } else {
         document.getElementById('estadoTransmision').style.display = 'none';
         document.getElementById('btnDetenerTrans').style.display = 'none';
@@ -828,57 +847,65 @@ function mostrarModalTransmisiones() {
     new bootstrap.Modal(document.getElementById('modalTransmisiones')).show();
 }
 
-// ── ABRIR TRANSMISIÓN ──
+// ── ABRIR / ACTIVAR TRANSMISIÓN ──
 function abrirTransmision() {
     const url = document.getElementById('urlTransmision').value.trim();
-    
+
     if (!url) {
         alert('Pega el enlace de la transmisión primero');
         return;
     }
-    
+
     // Obtener embed URL según plataforma
     const embedUrl = extraerEmbedURL(url);
-    
-    if (!embedUrl) {
-        alert('❌ URL no válida. Asegúrate de copiar el enlace correcto.');
+
+    if (!embedUrl || !/^https:\/\//i.test(embedUrl)) {
+        alert('❌ URL no válida. Asegúrate de copiar el enlace correcto (https).');
         return;
     }
-    
-    // ── GUARDAR EN localStorage para que index.php muestre el botón flotante ──
+
     const titulo = document.getElementById('tituloTransmision').value.trim() || 'Transmisión en vivo';
-    localStorage.setItem('plec-transmision-url', url);
-    localStorage.setItem('plec-transmision-embed', embedUrl);
-    localStorage.setItem('plec-transmision-activa', '1');
-    localStorage.setItem('plec-transmision-titulo', titulo);
+    const btnVer = document.getElementById('btnActivarTrans');
+    if (btnVer) { btnVer.disabled = true; btnVer.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Guardando...'; }
 
-    // Mostrar preview
-    document.getElementById('previewTransmision').style.display = 'block';
-    document.getElementById('iframeTransmision').src = embedUrl;
+    guardarStreamServidor({ accion: 'activar', stream_url: url, stream_embed: embedUrl, stream_titulo: titulo })
+        .then(res => {
+            if (!res.ok) throw new Error(res.mensaje || 'No se pudo guardar.');
+            PLEC_STREAM = { activo: true, url: url, embed: embedUrl, titulo: titulo };
 
-    // Mostrar mensaje de confirmación
-    const btnVer = document.querySelector('.modal-footer .btn-danger');
-    if (btnVer) {
-        btnVer.innerHTML = '<i class="fas fa-check me-1"></i> ¡Activa en el sitio!';
-        btnVer.style.background = '#28a745';
-        setTimeout(() => {
-            btnVer.innerHTML = '<i class="fas fa-play me-1"></i> Ver Transmisión';
-            btnVer.style.background = '';
-        }, 2500);
-    }
+            document.getElementById('previewTransmision').style.display = 'block';
+            document.getElementById('iframeTransmision').src = embedUrl;
+            document.getElementById('estadoTransmision').style.display = 'flex';
+            document.getElementById('btnDetenerTrans').style.display = 'inline-block';
+
+            if (btnVer) {
+                btnVer.innerHTML = '<i class="fas fa-check me-1"></i> ¡Activa en el sitio!';
+                btnVer.style.background = '#28a745';
+                setTimeout(() => {
+                    btnVer.innerHTML = '<i class="fas fa-play me-1"></i> Ver Transmisión';
+                    btnVer.style.background = '';
+                }, 2500);
+            }
+        })
+        .catch(err => alert('❌ ' + err.message))
+        .finally(() => { if (btnVer) btnVer.disabled = false; });
 }
 
 // ── DETENER TRANSMISIÓN ──
 function detenerTransmision() {
-    localStorage.removeItem('plec-transmision-url');
-    localStorage.removeItem('plec-transmision-embed');
-    localStorage.removeItem('plec-transmision-activa');
-    localStorage.removeItem('plec-transmision-titulo');
-    document.getElementById('previewTransmision').style.display = 'none';
-    document.getElementById('iframeTransmision').src = '';
-    document.getElementById('urlTransmision').value = '';
-    document.getElementById('tituloTransmision').value = '';
-    alert('✅ Transmisión detenida. El botón y el aviso desaparecerán del sitio.');
+    guardarStreamServidor({ accion: 'detener' })
+        .then(res => {
+            if (!res.ok) throw new Error(res.mensaje || 'No se pudo detener.');
+            PLEC_STREAM = { activo: false, url: '', embed: '', titulo: '' };
+            document.getElementById('previewTransmision').style.display = 'none';
+            document.getElementById('iframeTransmision').src = '';
+            document.getElementById('urlTransmision').value = '';
+            document.getElementById('tituloTransmision').value = '';
+            document.getElementById('estadoTransmision').style.display = 'none';
+            document.getElementById('btnDetenerTrans').style.display = 'none';
+            alert('✅ Transmisión detenida. El botón y el aviso desaparecerán del sitio.');
+        })
+        .catch(err => alert('❌ ' + err.message));
 }
 
 // ── EXTRAER URL DE EMBED SEGÚN PLATAFORMA ──

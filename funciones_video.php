@@ -1,105 +1,55 @@
 <?php
 /**
- * Función para generar embed HTML responsivo según plataforma
- * @param string $url - URL del video
- * @return string - HTML del iframe responsivo
+ * Convierte la URL pública de un video (YouTube, Vimeo, Facebook, TikTok,
+ * Instagram, Twitch) en su URL de inserción. Devuelve '' si no la reconoce.
  */
-function renderizarVideoEmbed($url) {
-    if (empty($url)) {
+function obtenerEmbedVideo($url) {
+    $url = trim((string)$url);
+    if ($url === '') return '';
+    $u = strtolower($url);
+
+    if (strpos($u, 'youtube.com') !== false || strpos($u, 'youtu.be') !== false) {
+        if (preg_match('~(?:watch\?(?:.*&)?v=|/live/|/shorts/|/embed/|youtu\.be/)([A-Za-z0-9_-]{5,20})~', $url, $m)) {
+            return 'https://www.youtube.com/embed/' . $m[1] . '?rel=0';
+        }
         return '';
     }
-    
-    $urlLower = strtolower($url);
-    $embedUrl = null;
-    
-    // YOUTUBE
-    if (strpos($urlLower, 'youtube.com') !== false || strpos($urlLower, 'youtu.be') !== false) {
-        $videoId = null;
-        if (strpos($url, 'watch?v=') !== false) {
-            $videoId = explode('watch?v=', $url)[1];
-            $videoId = explode('&', $videoId)[0];
-        } elseif (strpos($url, 'youtu.be/') !== false) {
-            $videoId = explode('youtu.be/', $url)[1];
-            $videoId = explode('?', $videoId)[0];
-        }
-        if ($videoId) {
-            $embedUrl = "https://www.youtube.com/embed/{$videoId}";
-        }
+    if (strpos($u, 'vimeo.com') !== false) {
+        return preg_match('~vimeo\.com/(?:video/)?(\d+)~', $url, $m) ? 'https://player.vimeo.com/video/' . $m[1] : '';
     }
-    
-    // VIMEO
-    elseif (strpos($urlLower, 'vimeo.com') !== false) {
-        $videoId = explode('vimeo.com/', $url)[1];
-        $videoId = explode('?', $videoId)[0];
-        $embedUrl = "https://player.vimeo.com/video/{$videoId}";
+    if (strpos($u, 'facebook.com') !== false || strpos($u, 'fb.watch') !== false) {
+        return 'https://www.facebook.com/plugins/video.php?href=' . urlencode($url) . '&show_text=false';
     }
-    
-    // TIKTOK
-    elseif (strpos($urlLower, 'tiktok.com') !== false) {
-        // TikTok puede necesitar oEmbed, por ahora devolvemos link
-        return "<div class='alert alert-info'><i class='fas fa-info-circle me-2'></i> <a href='{$url}' target='_blank' rel='noopener'>Ver en TikTok</a></div>";
+    if (strpos($u, 'tiktok.com') !== false) {
+        return preg_match('~/video/(\d+)~', $url, $m) ? 'https://www.tiktok.com/embed/v2/' . $m[1] : '';
     }
-    
-    // FACEBOOK
-    elseif (strpos($urlLower, 'facebook.com') !== false) {
-        $embedUrl = "https://www.facebook.com/plugins/video.php?href=" . urlencode($url);
+    if (strpos($u, 'instagram.com') !== false) {
+        return preg_match('~instagram\.com/(?:p|reel)/([A-Za-z0-9_-]+)~', $url, $m) ? 'https://www.instagram.com/p/' . $m[1] . '/embed' : '';
     }
-    
-    // INSTAGRAM
-    elseif (strpos($urlLower, 'instagram.com') !== false) {
-        if (strpos($url, '/p/') !== false) {
-            $postId = explode('/p/', $url)[1];
-            $postId = explode('/', $postId)[0];
-            $embedUrl = "https://www.instagram.com/p/{$postId}/embed";
-        }
+    if (strpos($u, 'twitch.tv') !== false) {
+        $host = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? 'localhost');
+        return preg_match('~twitch\.tv/([A-Za-z0-9_]+)~', $url, $m)
+            ? 'https://player.twitch.tv/?channel=' . $m[1] . '&parent=' . rawurlencode($host)
+            : '';
     }
-    
-    // TWITCH
-    elseif (strpos($urlLower, 'twitch.tv') !== false) {
-        $canal = explode('twitch.tv/', $url)[1];
-        $canal = explode('/', $canal)[0];
-        $embedUrl = "https://player.twitch.tv/?channel={$canal}&parent=localhost";
-    }
-    
-    // Si no se reconoce, devolver URL de descarga
-    if (!$embedUrl) {
-        return "<div class='alert alert-warning'><i class='fas fa-exclamation-triangle me-2'></i> URL de video no soportada</div>";
-    }
-    
-    // Retornar HTML responsivo
-    $html = "
-    <div style='position:relative; width:100%; padding-bottom:56.25%; margin:20px 0; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.1);'>
-        <iframe 
-            style='position:absolute; top:0; left:0; width:100%; height:100%; border:none;'
-            src='{$embedUrl}'
-            allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture'
-            allowfullscreen>
-        </iframe>
-    </div>
-    ";
-    
-    return $html;
+    return '';
 }
 
 /**
- * Función para validar si una URL es de una plataforma soportada
- * @param string $url - URL a validar
- * @return bool
+ * HTML responsivo (16:9) con el video insertado, o '' si la URL no es válida.
+ */
+function renderizarVideoEmbed($url) {
+    $embed = obtenerEmbedVideo($url);
+    if ($embed === '') return '';
+    return '<div class="plec-video" style="position:relative; width:100%; padding-bottom:56.25%; margin:22px 0; border-radius:10px; overflow:hidden; background:#000; box-shadow:0 20px 40px -18px rgba(0,0,0,.8);">'
+         . '<iframe style="position:absolute; inset:0; width:100%; height:100%; border:none;" src="' . htmlspecialchars($embed, ENT_QUOTES, 'UTF-8') . '"'
+         . ' allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>'
+         . '</div>';
+}
+
+/**
+ * Indica si la URL pertenece a una plataforma de video soportada.
  */
 function validarURLVideo($url) {
-    if (empty($url)) {
-        return false;
-    }
-    
-    $urlLower = strtolower($url);
-    $plataformas = ['youtube.com', 'youtu.be', 'vimeo.com', 'tiktok.com', 'facebook.com', 'instagram.com', 'twitch.tv'];
-    
-    foreach ($plataformas as $plat) {
-        if (strpos($urlLower, $plat) !== false) {
-            return true;
-        }
-    }
-    
-    return false;
+    return obtenerEmbedVideo($url) !== '';
 }
-?>

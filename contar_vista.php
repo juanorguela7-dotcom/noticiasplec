@@ -31,11 +31,26 @@ if (!isset($_SESSION['plec_vistas_contadas']) || !is_array($_SESSION['plec_vista
 $ya_contada = in_array($id, $_SESSION['plec_vistas_contadas'], true);
 
 if (!$ya_contada) {
-    $stmt = mysqli_prepare($conn, "UPDATE noticias SET vistas = vistas + 1 WHERE id = ?");
-    if ($stmt) {
+    try {
+        $stmt = mysqli_prepare($conn, "UPDATE noticias SET vistas = vistas + 1 WHERE id = ?");
         mysqli_stmt_bind_param($stmt, "i", $id);
         mysqli_stmt_execute($stmt);
+        $existe = mysqli_stmt_affected_rows($stmt) > 0;
         mysqli_stmt_close($stmt);
+
+        // Conteo por día (tabla visitas_log) para "Lo más leído" de la semana
+        if ($existe) {
+            date_default_timezone_set('America/Bogota');
+            $hoy = date('Y-m-d');
+            $stmt_log = mysqli_prepare($conn, "INSERT INTO visitas_log (noticia_id, fecha, cantidad) VALUES (?, ?, 1)
+                                               ON DUPLICATE KEY UPDATE cantidad = cantidad + 1");
+            mysqli_stmt_bind_param($stmt_log, "is", $id, $hoy);
+            mysqli_stmt_execute($stmt_log);
+            mysqli_stmt_close($stmt_log);
+        }
+    } catch (Throwable $e) {
+        // Si falta la columna o la tabla (migración sin aplicar) no rompemos la página
+        error_log('Noticias PLEC - contar_vista: ' . $e->getMessage());
     }
 
     $_SESSION['plec_vistas_contadas'][] = $id;
@@ -48,8 +63,8 @@ if (!$ya_contada) {
 
 // Devolvemos el total actualizado para mostrarlo al instante en pantalla
 $vistas = 0;
-$stmt2 = mysqli_prepare($conn, "SELECT vistas FROM noticias WHERE id = ? LIMIT 1");
-if ($stmt2) {
+try {
+    $stmt2 = mysqli_prepare($conn, "SELECT vistas FROM noticias WHERE id = ? LIMIT 1");
     mysqli_stmt_bind_param($stmt2, "i", $id);
     mysqli_stmt_execute($stmt2);
     $res2 = mysqli_stmt_get_result($stmt2);
@@ -57,6 +72,8 @@ if ($stmt2) {
         $vistas = intval($row2['vistas']);
     }
     mysqli_stmt_close($stmt2);
+} catch (Throwable $e) {
+    $vistas = 0;
 }
 
 echo json_encode(["ok" => true, "vistas" => $vistas, "contada" => !$ya_contada]);

@@ -1,0 +1,5 @@
+/vendor/
+.env
+conexion.local.php
+# Respaldos de la base de datos (contienen usuarios y hashes de contraseñas)
+/sql/respaldo_*.sql

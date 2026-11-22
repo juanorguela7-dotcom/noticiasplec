@@ -1,7 +1,9 @@
 User-agent: *
 Allow: /
 Disallow: /conexion.php
-Disallow: /admin/
-Disallow: /includes/
+Disallow: /admin.php
+Disallow: /admin_impresos.php
+Disallow: /login.php
+Disallow: /registrar-huella.php
 
-Sitemap: https://www.noticiasplec.com/sitemap.xml
+Sitemap: https://noticiasplec-production.up.railway.app/sitemap.php

@@ -1,0 +1,472 @@
+/* ════════════════════════════════════════════════════════════════════
+   NOTICIAS PLEC — CAPA 3D, PROFUNDIDAD Y MOVIMIENTO
+   Se carga DESPUÉS del CSS propio de cada página y solo añade efectos.
+   · Si el JS no carga, todo el contenido sigue visible (los estados
+     ocultos dependen de la clase .plec-js que pone el script del <head>).
+   · Respeta "reducir movimiento" del sistema operativo.
+   · En pantallas táctiles se desactivan los efectos que dependen del mouse.
+   ════════════════════════════════════════════════════════════════════ */
+
+@property --plec-angle {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+
+:root {
+    --plec-ease: cubic-bezier(.2, .8, .2, 1);
+    --plec-ease-back: cubic-bezier(.34, 1.56, .64, 1);
+    --plec-glow-azul: rgba(26, 115, 232, .45);
+    --plec-glow-rojo: rgba(255, 77, 77, .45);
+    --plec-glass: rgba(22, 22, 26, .72);
+    --plec-borde: rgba(255, 255, 255, .07);
+    --plec-grad: linear-gradient(90deg, #1a73e8, #8e44ad, #ff4d4d);
+}
+
+/* ── BARRA DE PROGRESO DE LECTURA ─────────────────────────────────── */
+.plec-progress {
+    position: fixed; top: 0; left: 0; z-index: 10030;
+    width: 100%; height: 3px;
+    background: var(--plec-grad);
+    transform-origin: 0 50%;
+    transform: scaleX(var(--plec-p, 0));
+    box-shadow: 0 0 14px var(--plec-glow-azul);
+    pointer-events: none;
+}
+
+/* ── FONDO AMBIENTAL: ORBES DE LUZ + FOCO QUE SIGUE AL MOUSE ───────── */
+.plec-ambient {
+    position: fixed; inset: 0; z-index: -1;
+    pointer-events: none; overflow: hidden;
+}
+.plec-ambient span {
+    position: absolute; border-radius: 50%;
+    width: 62vmax; height: 62vmax; opacity: .16;
+    animation: plecOrb 30s ease-in-out infinite alternate;
+    will-change: transform;
+}
+.plec-ambient span:nth-child(1) { background: radial-gradient(circle, #1a73e8 0%, transparent 62%); top: -22vmax; left: -18vmax; }
+.plec-ambient span:nth-child(2) { background: radial-gradient(circle, #ff4d4d 0%, transparent 62%); bottom: -28vmax; right: -22vmax; animation-duration: 36s; animation-delay: -9s; }
+.plec-ambient span:nth-child(3) { background: radial-gradient(circle, #8e44ad 0%, transparent 62%); top: 35%; left: 38%; width: 42vmax; height: 42vmax; opacity: .10; animation-duration: 44s; animation-delay: -18s; }
+.plec-ambient::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(520px circle at var(--plec-mx, 50%) var(--plec-my, -20%), rgba(26, 115, 232, .09), transparent 45%);
+}
+@keyframes plecOrb {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    50%  { transform: translate3d(9vmax, 7vmax, 0) scale(1.15); }
+    100% { transform: translate3d(-7vmax, 11vmax, 0) scale(.94); }
+}
+body.modo-claro .plec-ambient span { opacity: .09; }
+
+/* ── CABECERA 3D: GLOBO DE PARTÍCULAS + LOGO CON PROFUNDIDAD ──────── */
+header.plec-hero {
+    position: relative; overflow: hidden; isolation: isolate;
+    min-height: 240px; padding: 46px 20px 40px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    perspective: 900px;
+}
+header.plec-hero > canvas.plec-globe {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    z-index: -1; display: block;
+}
+header.plec-hero::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 70px; z-index: -1;
+    background: linear-gradient(transparent, var(--bg, #121212));
+    pointer-events: none;
+}
+body.modo-claro header.plec-hero::after { background: linear-gradient(transparent, #f0f0f0); }
+
+header.plec-hero .plec-logo-wrap {
+    display: inline-block; text-decoration: none;
+    translate: 0 var(--plec-hero-y, 0px);
+    opacity: var(--plec-hero-o, 1);
+    transform-style: preserve-3d;
+    transform: rotateX(var(--plec-lx, 0deg)) rotateY(var(--plec-ly, 0deg));
+    transition: transform .4s var(--plec-ease);
+}
+header.plec-hero .logo-text {
+    animation: plecLogoFloat 7s ease-in-out infinite;
+    text-shadow:
+        0 1px 0 #2b4f8f, 0 2px 0 #24447c, 0 3px 0 #1d3969, 0 4px 0 #172e56,
+        0 5px 0 #112444, 0 6px 0 #0c1a32,
+        0 12px 18px rgba(0, 0, 0, .55), 0 0 42px rgba(26, 115, 232, .35);
+}
+header.plec-hero .logo-text span {
+    display: inline-block;
+    text-shadow:
+        0 1px 0 #c73a3a, 0 2px 0 #b13232, 0 3px 0 #9b2a2a, 0 4px 0 #852323,
+        0 5px 0 #6f1c1c, 0 6px 0 #591616,
+        0 12px 18px rgba(0, 0, 0, .55), 0 0 42px rgba(255, 77, 77, .4);
+}
+body.modo-claro header.plec-hero .logo-text {
+    text-shadow: 0 1px 0 #c9d6ee, 0 2px 0 #b6c7e6, 0 3px 0 #a3b8de, 0 4px 0 #90a9d6, 0 10px 16px rgba(0, 0, 0, .18);
+}
+body.modo-claro header.plec-hero .logo-text span {
+    text-shadow: 0 1px 0 #f3b3b3, 0 2px 0 #eea0a0, 0 3px 0 #e98d8d, 0 4px 0 #e47a7a, 0 10px 16px rgba(0, 0, 0, .18);
+}
+header.plec-hero .slogan {
+    translate: 0 var(--plec-hero-y2, 0px);
+    opacity: var(--plec-hero-o, 1);
+    animation: plecSloganIn 1.4s var(--plec-ease) .2s both;
+}
+@keyframes plecLogoFloat {
+    0%, 100% { translate: 0 0; }
+    50%      { translate: 0 -6px; }
+}
+@keyframes plecSloganIn {
+    from { opacity: 0; letter-spacing: 14px; filter: blur(4px); }
+    to   { opacity: 1; filter: blur(0); }
+}
+
+/* ── NAVEGACIÓN: CRISTAL FIJO + SUBRAYADO ANIMADO ──────────────────── */
+nav.plec-nav {
+    position: sticky; top: 0;
+    background: rgba(24, 24, 24, .78);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    backdrop-filter: blur(14px) saturate(150%);
+    transition: box-shadow .35s, background .35s;
+}
+nav.plec-nav.is-stuck { box-shadow: 0 12px 34px rgba(0, 0, 0, .5); }
+nav.plec-nav .nav-container { padding-left: 46px; padding-right: 8px; }
+body.modo-claro nav.plec-nav { background: rgba(255, 255, 255, .82); }
+
+.nav-container a { position: relative; }
+.nav-container a::before {
+    content: ""; position: absolute; left: 50%; right: 50%; bottom: 7px; height: 2px;
+    border-radius: 2px; background: linear-gradient(90deg, #1a73e8, #ff4d4d);
+    transition: left .4s var(--plec-ease), right .4s var(--plec-ease);
+}
+.nav-container a:hover::before,
+.nav-container a.activo::before { left: 16px; right: 16px; }
+.nav-container a.activo { color: #ffcc00; }
+body.modo-claro .nav-container a.activo { color: #1a73e8; }
+
+.nav-ultimahora-wrap { left: 50px; }
+@media (max-width: 1199px) {
+    .nav-ultimahora-wrap { display: none; }
+}
+@media (max-width: 768px) {
+    nav.plec-nav .nav-container {
+        flex-wrap: nowrap !important; justify-content: flex-start !important;
+        overflow-x: auto; scrollbar-width: none; padding-left: 58px;
+        -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+        mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    }
+    nav.plec-nav .nav-container::-webkit-scrollbar { display: none; }
+    nav.plec-nav { overflow: visible; }
+    header.plec-hero { min-height: 170px; padding: 30px 14px 26px; }
+}
+
+/* ── TICKER CON BORDES DIFUMINADOS ─────────────────────────────────── */
+.ticker-wrap {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+/* ── TARJETAS 3D (INCLINACIÓN CON EL MOUSE + REFLEJO DE LUZ) ──────── */
+.card, .card-especial, .edicion-card, .opinion-card { position: relative; }
+
+.plec-tilt {
+    transform:
+        perspective(1000px)
+        rotateX(var(--plec-rx, 0deg))
+        rotateY(calc(var(--plec-ry-base, 0deg) + var(--plec-ry, 0deg)))
+        translate3d(0, var(--plec-lift, 0px), var(--plec-z, 0px));
+    transition: transform .6s var(--plec-ease), box-shadow .5s var(--plec-ease), border-color .3s;
+    will-change: transform;
+}
+.card.plec-tilt:hover,
+.card-especial.plec-tilt:hover,
+.edicion-card.plec-tilt:hover {
+    transform:
+        perspective(1000px)
+        rotateX(var(--plec-rx, 0deg))
+        rotateY(calc(var(--plec-ry-base, 0deg) + var(--plec-ry, 0deg)))
+        translate3d(0, var(--plec-lift, 0px), var(--plec-z, 0px));
+}
+.plec-tilt.is-hovering {
+    --plec-lift: -8px;
+    --plec-ry-base: 0deg !important;
+    transition: transform .14s linear, box-shadow .4s var(--plec-ease), border-color .3s;
+    border-color: rgba(26, 115, 232, .55) !important;
+    box-shadow:
+        0 30px 60px -18px rgba(0, 0, 0, .75),
+        0 0 0 1px rgba(26, 115, 232, .25),
+        0 0 46px -12px var(--plec-glow-azul);
+}
+.plec-tilt::after {
+    content: ""; position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    border-radius: inherit; opacity: 0; transition: opacity .35s;
+    background: radial-gradient(520px circle at var(--plec-gx, 50%) var(--plec-gy, 50%), rgba(255, 255, 255, .16), transparent 42%);
+}
+.plec-tilt.is-hovering::after { opacity: 1; }
+
+.plec-tilt .img-box { overflow: hidden; }
+.plec-tilt .img-box img,
+.plec-tilt > img,
+.plec-tilt .portada-img {
+    transform: scale(1.02);
+    transition: transform .9s var(--plec-ease), filter .6s;
+}
+.plec-tilt.is-hovering .img-box img,
+.plec-tilt.is-hovering > img,
+.plec-tilt.is-hovering .portada-img {
+    transform: scale(1.12) translate3d(calc(var(--plec-px, 0) * -12px), calc(var(--plec-py, 0) * -12px), 0);
+    transition: transform .25s linear, filter .6s;
+    filter: saturate(1.15);
+}
+
+/* ── ESCENARIO 3D DE LA PORTADA (columnas laterales en ángulo) ────── */
+.bloque-principal, .principal-laterales, .principal-centro,
+.seccion-grid, .grid-busqueda, .bloque-inferior, .columnistas-list,
+main, .grid-revista, .grid-impresos, .opinion-grid { perspective: 1600px; }
+
+@media (min-width: 1200px) and (hover: hover) {
+    .principal-laterales:first-child .card.plec-tilt { --plec-ry-base: 6deg; transform-origin: right center; }
+    .principal-laterales:last-child  .card.plec-tilt { --plec-ry-base: -6deg; transform-origin: left center; }
+}
+
+/* Historia principal: zoom cinematográfico lento + degradado */
+.principal-centro .img-box { position: relative; }
+.principal-centro .img-box img {
+    animation: plecKenBurns 20s ease-in-out infinite alternate;
+}
+.principal-centro .img-box::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, transparent 55%, rgba(0, 0, 0, .55));
+}
+@keyframes plecKenBurns {
+    from { scale: 1; translate: 0 0; }
+    to   { scale: 1.1; translate: -1.5% -1%; }
+}
+
+/* ── APARICIÓN EN 3D AL HACER SCROLL ───────────────────────────────── */
+.plec-js [data-reveal] { opacity: 0; }
+.plec-js [data-reveal].is-visible {
+    opacity: 1;
+    animation: plecRise 1s var(--plec-ease) var(--plec-d, 0s) both;
+    transform-origin: 50% 100%;
+}
+.plec-js [data-reveal="left"].is-visible  { animation-name: plecFromLeft; transform-origin: 0 50%; }
+.plec-js [data-reveal="right"].is-visible { animation-name: plecFromRight; transform-origin: 100% 50%; }
+.plec-js [data-reveal="zoom"].is-visible  { animation-name: plecZoom; animation-duration: 1.2s; }
+.plec-js [data-reveal="flip"].is-visible  { animation-name: plecFlip; animation-duration: 1.1s; transform-origin: 50% 0; }
+
+@keyframes plecRise {
+    from { opacity: 0; translate: 0 56px; rotate: x 18deg; scale: .96; }
+    to   { opacity: 1; translate: 0 0; rotate: x 0deg; scale: 1; }
+}
+@keyframes plecFromLeft {
+    from { opacity: 0; translate: -70px 0; rotate: y 22deg; }
+    to   { opacity: 1; translate: 0 0; rotate: y 0deg; }
+}
+@keyframes plecFromRight {
+    from { opacity: 0; translate: 70px 0; rotate: y -22deg; }
+    to   { opacity: 1; translate: 0 0; rotate: y 0deg; }
+}
+@keyframes plecZoom {
+    from { opacity: 0; scale: .84; translate: 0 30px; }
+    to   { opacity: 1; scale: 1; translate: 0 0; }
+}
+@keyframes plecFlip {
+    from { opacity: 0; rotate: x -70deg; translate: 0 -20px; }
+    to   { opacity: 1; rotate: x 0deg; translate: 0 0; }
+}
+
+/* ── TÍTULOS DE SECCIÓN: PUNTO "EN VIVO" + SUBRAYADO QUE SE DIBUJA ── */
+.seccion-titulo { position: relative; border-bottom-color: transparent !important; }
+.seccion-titulo.inclusion { border-image: none !important; }
+.seccion-titulo::before {
+    content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 10px;
+    border-radius: 50%; background: #ff4d4d; vertical-align: middle;
+    animation: plecPing 2.2s ease-out infinite;
+}
+.seccion-titulo::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 3px; border-radius: 3px;
+    background: linear-gradient(90deg, #1a73e8, #ff4d4d);
+    transform-origin: 0 50%;
+    transition: transform 1.1s var(--plec-ease) .25s;
+}
+.seccion-titulo.inclusion::after { background: linear-gradient(90deg, #e40303, #ff8c00, #ffed00, #008026, #004dff, #750787); }
+.plec-js .seccion-titulo::after { transform: scaleX(0); }
+.plec-js .seccion-titulo.is-visible::after,
+.plec-js .is-visible .seccion-titulo::after { transform: scaleX(1); }
+@keyframes plecPing {
+    0%   { box-shadow: 0 0 0 0 rgba(255, 77, 77, .65); }
+    70%  { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
+}
+
+.sec-contador { transition: color .3s, border-color .3s; }
+.seccion-bloque:hover .sec-contador { color: #9ab4e0; border-color: rgba(26, 115, 232, .4); }
+.btn-ver-mas-destacado i.fa-arrow-right { transition: transform .35s var(--plec-ease); }
+.btn-ver-mas-destacado:hover i.fa-arrow-right { transform: translateX(5px); }
+
+/* ── BLOQUE INFERIOR: EDITORIAL, COLUMNISTAS, IMPRESO EN 3D ───────── */
+.bloque-inferior > div { transition: background .4s; }
+.bloque-inferior > div:hover { background: #191919; }
+body.modo-claro .bloque-inferior > div:hover { background: #fafafa; }
+
+.editorial-box > div { transition: transform .5s var(--plec-ease); }
+.editorial-box > div:hover { transform: translateX(6px); }
+.editorial-box h3 { background: linear-gradient(90deg, currentColor, currentColor) 0 100% / 0 1px no-repeat; transition: background-size .6s var(--plec-ease); }
+.editorial-box > div:hover h3 { background-size: 100% 1px; }
+
+.columnista-item { transition: transform .45s var(--plec-ease), border-color .3s, background .3s, box-shadow .45s; }
+.columnista-item:hover {
+    transform: translateY(-4px) translateZ(20px);
+    border-color: rgba(26, 115, 232, .45);
+    box-shadow: 0 16px 30px -14px rgba(0, 0, 0, .7), 0 0 30px -14px var(--plec-glow-azul);
+}
+.columnista-avatar, .opinion-avatar {
+    padding: 2px; border: none !important;
+    background: conic-gradient(from var(--plec-angle), #1a73e8, #ff4d4d, #ffcc00, #1a73e8);
+}
+.columnista-item:hover .columnista-avatar,
+.opinion-card:hover .opinion-avatar { animation: plecSpin 2.4s linear infinite; }
+@keyframes plecSpin { to { --plec-angle: 360deg; } }
+
+.impreso-box { perspective: 900px; }
+.plec-book {
+    position: relative; display: inline-block; margin-bottom: 18px;
+    transform-style: preserve-3d;
+    transform: rotateY(-24deg) rotateX(6deg);
+    transition: transform .9s var(--plec-ease);
+    animation: plecBookFloat 6s ease-in-out infinite;
+}
+.plec-book .impreso-img { margin-bottom: 0; display: block; box-shadow: 22px 22px 36px rgba(0, 0, 0, .6); }
+.plec-book::before {
+    content: ""; position: absolute; top: 1.5%; bottom: 1.5%; right: 0; width: 12px;
+    transform-origin: left center; transform: translateX(100%) rotateY(90deg) translateX(0);
+    background: repeating-linear-gradient(90deg, #eee 0 1px, #c9c9c9 1px 2px);
+}
+.plec-book::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 3px;
+    background: linear-gradient(105deg, rgba(255, 255, 255, .22) 0%, transparent 35%, transparent 70%, rgba(0, 0, 0, .25));
+}
+.impreso-box:hover .plec-book { transform: rotateY(-4deg) rotateX(0deg) scale(1.05); }
+@keyframes plecBookFloat {
+    0%, 100% { translate: 0 0; }
+    50%      { translate: 0 -8px; }
+}
+.btn-impreso { transition: border-color .25s, color .25s, background .25s, letter-spacing .35s var(--plec-ease); }
+.btn-impreso:hover { letter-spacing: 2.5px; background: rgba(255, 77, 77, .08); border-color: #ff4d4d; color: #fff; }
+
+/* ── LO MÁS LEÍDO + EFEMÉRIDES ─────────────────────────────────────── */
+.mas-leido-box, .efemerides-box {
+    position: relative; overflow: hidden;
+    transition: transform .6s var(--plec-ease), box-shadow .6s, border-color .4s;
+}
+.mas-leido-box::before, .efemerides-box::before {
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 2px;
+    background: var(--plec-grad); background-size: 200% 100%;
+    animation: plecSlideGrad 6s linear infinite;
+}
+.mas-leido-box:hover, .efemerides-box:hover {
+    border-color: #2a2a2a;
+    box-shadow: 0 24px 48px -24px rgba(0, 0, 0, .8);
+}
+.mas-leido-item { transition: transform .35s var(--plec-ease), background .3s; border-radius: 6px; text-decoration: none; }
+.mas-leido-item:hover { transform: translateX(8px); }
+.mas-leido-num {
+    background: linear-gradient(180deg, #555, #2a2a2a);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.mas-leido-num.top1 { background-image: linear-gradient(180deg, #ff8080, #ff4d4d 60%, #b32020); }
+.mas-leido-num.top2 { background-image: linear-gradient(180deg, #9ab4e0, #1a73e8); }
+.mas-leido-num.top3 { background-image: linear-gradient(180deg, #c39bd3, #8e44ad); }
+.mas-leido-vistas { display: block; font-size: 10px; color: #555; margin-top: 2px; }
+.efemerides-item { transition: transform .35s var(--plec-ease); }
+.efemerides-item:hover { transform: translateX(6px); }
+.efemerides-anio { text-shadow: 0 0 18px var(--plec-glow-azul); }
+@keyframes plecSlideGrad { to { background-position: 200% 0; } }
+
+/* ── FOOTER ─────────────────────────────────────────────────────────── */
+footer { position: relative; }
+footer::before {
+    content: ""; position: absolute; top: -3px; left: 0; right: 0; height: 3px;
+    background: var(--plec-grad); background-size: 200% 100%;
+    animation: plecSlideGrad 8s linear infinite;
+}
+
+/* ── MODALES CON ENTRADA 3D ────────────────────────────────────────── */
+.modal, #modalGuardados, #modalOpinion, #modalQR, #modalIG, .modal-transmision-overlay, .modal-overlay {
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    perspective: 1400px;
+}
+.modal .modal-content,
+#modalGuardados.show .guardados-box,
+#modalOpinion.show .opinion-box,
+#modalQR.show .qr-box,
+#modalIG.show .ig-box,
+.modal-transmision-overlay.show .modal-transmision-box,
+.modal-overlay .modal-box {
+    animation: plecModalIn .65s var(--plec-ease) both;
+    transform-origin: 50% 0;
+}
+.modal .modal-content { border: 1px solid #2a2a2a; box-shadow: 0 40px 90px -20px rgba(0, 0, 0, .9), 0 0 60px -20px var(--plec-glow-azul); }
+.modal .modal-content img { border-radius: 10px; }
+.plec-modal-img { animation: plecModalImg 1.2s var(--plec-ease) both .1s; }
+@keyframes plecModalIn {
+    from { opacity: 0; transform: rotateX(16deg) translateY(70px) scale(.94); }
+    to   { opacity: 1; transform: none; }
+}
+@keyframes plecModalImg {
+    from { opacity: 0; transform: scale(1.08); filter: blur(6px); }
+    to   { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+.plec-modal-cerrar {
+    position: absolute; right: 18px; top: 14px; z-index: 5;
+    width: 42px; height: 42px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, .06); border: 1px solid #333; color: #fff;
+    font-size: 26px; line-height: 1; cursor: pointer;
+    transition: transform .4s var(--plec-ease-back), background .3s;
+}
+.plec-modal-cerrar:hover { transform: rotate(90deg) scale(1.08); background: rgba(255, 77, 77, .2); }
+
+/* Bienvenida: la tarjeta entra girando en 3D */
+#modalBienvenida { perspective: 1100px; }
+#modalBienvenida.show .bienvenida-box {
+    animation: plecFlipIn 1s var(--plec-ease) both;
+    transform-style: preserve-3d;
+    transform: rotateX(var(--plec-rx, 0deg)) rotateY(var(--plec-ry, 0deg));
+    transition: transform .2s linear;
+}
+@keyframes plecFlipIn {
+    from { opacity: 0; rotate: x -75deg; translate: 0 -50px; scale: .9; }
+    to   { opacity: 1; rotate: x 0deg; translate: 0 0; scale: 1; }
+}
+.bienvenida-titular { transition: opacity .35s, transform .35s var(--plec-ease); }
+.bienvenida-titular.is-cambiando { opacity: 0; transform: translateY(8px) rotateX(40deg); }
+
+/* ── BOTONES "MAGNÉTICOS" ──────────────────────────────────────────── */
+[data-magnetic] { translate: var(--plec-mgx, 0px) var(--plec-mgy, 0px); transition: translate .35s var(--plec-ease); }
+
+/* ── REVISTA E IMPRESOS ────────────────────────────────────────────── */
+.card-especial { transform-style: preserve-3d; }
+.card-especial h2 { transition: color .3s; }
+.card-especial.is-hovering h2 { color: #ffcc00; }
+.edicion-card .portada-img { box-shadow: 0 18px 30px -12px rgba(0, 0, 0, .7); }
+
+/* ── NOTICIA INDIVIDUAL ────────────────────────────────────────────── */
+.plec-articulo-img-wrap { perspective: 1200px; margin-bottom: 22px; }
+.plec-articulo-img-wrap .imagen-noticia {
+    margin-bottom: 0;
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, .8);
+    transform: rotateX(var(--plec-rx, 0deg)) rotateY(var(--plec-ry, 0deg));
+    transition: transform .3s var(--plec-ease);
+}
+
+/* ── ACCESIBILIDAD: SIN MOVIMIENTO SI EL USUARIO LO PIDE ───────────── */
+@media (prefers-reduced-motion: reduce) {
+    .plec-js [data-reveal],
+    .plec-js [data-reveal].is-visible { opacity: 1 !important; animation: none !important; }
+    .plec-ambient span, .principal-centro .img-box img, .plec-book,
+    header.plec-hero .logo-text, header.plec-hero .slogan,
+    .seccion-titulo::before, .mas-leido-box::before, .efemerides-box::before, footer::before,
+    .modal .modal-content, #modalBienvenida.show .bienvenida-box { animation: none !important; }
+    .plec-js .seccion-titulo::after { transform: scaleX(1); transition: none; }
+    .plec-tilt, .plec-tilt.is-hovering { transform: none !important; }
+}

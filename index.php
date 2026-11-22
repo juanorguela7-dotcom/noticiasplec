@@ -8,8 +8,61 @@ date_default_timezone_set('America/Bogota');
 include("conexion.php");
 
 $categoria_id = isset($_GET['cat']) ? intval($_GET['cat']) : 0;
-$busqueda = isset($_GET['s']) ? mysqli_real_escape_string($conn, $_GET['s']) : '';
+// Texto crudo: todas las consultas que lo usan son preparadas (antes se escapaba
+// dos veces y una búsqueda como "O'Neill" nunca encontraba nada).
+$busqueda = isset($_GET['s']) ? trim(mb_substr((string)$_GET['s'], 0, 100)) : '';
 $noticia_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+
+// Resumen en texto plano sin cortar letras con tilde (substr partía los caracteres UTF-8)
+function plec_resumen($html, $largo) {
+    $txt = trim(preg_replace('/\s+/u', ' ', strip_tags((string)$html)));
+    return mb_strlen($txt) > $largo ? mb_substr($txt, 0, $largo) . '...' : $txt;
+}
+
+// ── TRANSMISIÓN EN VIVO: se lee de la BD (la guarda el panel admin) ──
+$stream = ['activo' => false, 'embed' => '', 'titulo' => ''];
+try {
+    $res_stream = mysqli_query($conn, "SELECT clave, valor FROM configuracion WHERE clave IN ('stream_embed','stream_titulo','stream_activo')");
+    while ($res_stream && $fila_s = mysqli_fetch_assoc($res_stream)) {
+        $k = str_replace('stream_', '', $fila_s['clave']);
+        $stream[$k] = ($k === 'activo') ? ($fila_s['valor'] === '1') : (string)$fila_s['valor'];
+    }
+    if (stripos($stream['embed'], 'https://') !== 0) $stream['activo'] = false;
+} catch (Throwable $e) {
+    // La tabla `configuracion` aún no existe: no hay transmisión
+}
+
+// ── LO MÁS LEÍDO: visitas reales de la columna `vistas` (antes era solo
+//    lo que había abierto el propio visitante en su navegador) ──
+$mas_leidas = [];
+if ($categoria_id === 0 && $busqueda === '') {
+    try {
+        // 1º: lo más visto en los últimos 7 días (tabla visitas_log)
+        try {
+            $res_ml = mysqli_query($conn, "SELECT n.id, n.titulo, SUM(v.cantidad) AS vistas
+                FROM visitas_log v JOIN noticias n ON n.id = v.noticia_id
+                WHERE v.fecha >= (CURDATE() - INTERVAL 7 DAY) AND n.es_especial = 0
+                GROUP BY n.id, n.titulo ORDER BY vistas DESC, n.id DESC LIMIT 5");
+            while ($res_ml && $r_ml = mysqli_fetch_assoc($res_ml)) $mas_leidas[] = $r_ml;
+        } catch (Throwable $e) {
+            $mas_leidas = []; // visitas_log aún no existe
+        }
+        // 2º: si no hay datos de la semana, lo más visto del último mes
+        if (count($mas_leidas) === 0) {
+            $res_ml = mysqli_query($conn, "SELECT id, titulo, vistas FROM noticias
+                WHERE es_especial = 0 AND vistas > 0 AND fecha_publicacion >= (NOW() - INTERVAL 30 DAY)
+                ORDER BY vistas DESC, id DESC LIMIT 5");
+            while ($res_ml && $r_ml = mysqli_fetch_assoc($res_ml)) $mas_leidas[] = $r_ml;
+        }
+        // 3º: lo más visto de siempre
+        if (count($mas_leidas) === 0) {
+            $res_ml = mysqli_query($conn, "SELECT id, titulo, vistas FROM noticias WHERE es_especial = 0 AND vistas > 0 ORDER BY vistas DESC, id DESC LIMIT 5");
+            while ($res_ml && $r_ml = mysqli_fetch_assoc($res_ml)) $mas_leidas[] = $r_ml;
+        }
+    } catch (Throwable $e) {
+        $mas_leidas = [];
+    }
+}
 
 $esta_filtrando = ($categoria_id > 0 || !empty($busqueda));
 
@@ -19,7 +72,7 @@ $pagina_actual = isset($_GET['p']) ? max(1, intval($_GET['p'])) : 1;
 $offset = ($pagina_actual - 1) * $por_pagina;
 
 // ── SEO: título y descripción dinámicos ──
-$dominio = "https://noticiasplec-production.up.railway.app"; // <-- cambia por tu dominio real
+$dominio = PLEC_DOMINIO; // se configura en conexion.php (variable de entorno SITE_URL)
 $seo_titulo   = "Noticias PLEC - #SomosTodos | Noticiero Independiente";
 $seo_desc     = "Noticias PLEC, noticiero independiente del Tolima, Colombia. Colombia, política, salud, internacional, educación y farándula.";
 $seo_imagen   = $dominio . "/img/logo-plec.jpg";
@@ -89,6 +142,7 @@ if ($noticia_id > 0 && isset($conn)) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Libre+Franklin:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>document.documentElement.classList.add('plec-js');</script>
     <style>
         :root { --azul: #1a73e8; --bg: #121212; --card: #1e1e1e; --rojo: #ff4d4d; --texto-gris: #aaa; --inclusion: #8e44ad; }
         body { font-family: 'Libre Franklin', sans-serif; margin: 0; background: var(--bg); color: #e0e0e0; overflow-x: hidden; }
@@ -1113,6 +1167,8 @@ if ($noticia_id > 0 && isset($conn)) {
         }
         body.modo-claro .cat-info-banner .banner-texto strong { color: #111; }
 
+        /* PAGINACIÓN (antes faltaba este selector y todo el bloque se ignoraba) */
+        .paginacion {
             display: flex;
             justify-content: center;
             align-items: center;
@@ -1184,59 +1240,9 @@ if ($noticia_id > 0 && isset($conn)) {
         /* ── ALTO CONTRASTE ─────────────────────────────────────────────── */
         body.alto-contraste { background: #000 !important; color: #fff !important; filter: contrast(1.5) brightness(1.1); }
         body.alto-contraste .card, body.alto-contraste .bloque-inferior, body.alto-contraste nav { border-color: #fff !important; }
-        .btn-accesibilidad { background: none; border: 1px solid #444; color: #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 14px; display:flex; align-items:center; justify-content:center; transition:0.3s; flex-shrink:0; title: "Alto contraste"; }
+        .btn-accesibilidad { background: none; border: 1px solid #444; color: #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 14px; display:flex; align-items:center; justify-content:center; transition:0.3s; flex-shrink:0; }
         body.modo-claro .btn-accesibilidad { border-color: #999; color: #111; }
 
-        /* ── TICKER LATERAL VERTICAL ────────────────────────────────────── */
-        .ticker-lateral {
-            position: fixed; right: 0; top: 50%; transform: translateY(-50%);
-            width: 36px; height: 320px; background: #111; border: 1px solid #333;
-            border-radius: 8px 0 0 8px; z-index: 9000; overflow: hidden;
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .ticker-lateral-label {
-            writing-mode: vertical-rl; text-orientation: mixed;
-            font-size: 9px; font-weight: 900; color: var(--rojo);
-            letter-spacing: 2px; text-transform: uppercase; padding: 10px 0 6px;
-            flex-shrink: 0;
-        }
-        .ticker-lateral-track-wrap { flex: 1; overflow: hidden; width: 100%; position: relative; }
-        .ticker-lateral-track {
-            display: flex; flex-direction: column; gap: 0;
-            animation: tickerV 22s linear infinite;
-        }
-        .ticker-lateral-track:hover { animation-play-state: paused; }
-        .ticker-lateral-item {
-            writing-mode: vertical-rl; text-orientation: mixed;
-            font-size: 10px; color: #bbb; padding: 12px 0; cursor: pointer;
-            border-top: 1px solid #222; white-space: nowrap; max-height: 160px;
-            overflow: hidden; text-overflow: ellipsis; transition: color 0.2s;
-            flex-shrink: 0;
-        }
-        .ticker-lateral-item:hover { color: var(--azul); }
-        @keyframes tickerV {
-            0%   { transform: translateY(0); }
-            100% { transform: translateY(-50%); }
-        }
-        @media (max-width: 768px) { .ticker-lateral { display: none; } }
-
-        /* ── ENCUESTA SIDEBAR ───────────────────────────────────────────── */
-        .encuesta-box {
-            background: #111; border: 1px solid #2a2a2a; border-radius: 8px;
-            padding: 18px; margin: 16px 12px;
-        }
-        .encuesta-box h4 { font-size: 13px; color: #fff; margin: 0 0 12px; font-family: 'Playfair Display', serif; }
-        .encuesta-pregunta { font-size: 12px; color: #ccc; margin-bottom: 12px; line-height: 1.5; }
-        .encuesta-opcion {
-            display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; cursor: pointer;
-        }
-        .encuesta-opcion-label { font-size: 12px; color: #bbb; display: flex; justify-content: space-between; }
-        .encuesta-barra-wrap { background: #222; border-radius: 20px; height: 6px; overflow: hidden; }
-        .encuesta-barra { height: 100%; background: var(--azul); border-radius: 20px; transition: width 0.5s ease; }
-        .encuesta-opcion:hover .encuesta-barra { background: var(--rojo); }
-        .encuesta-voted { font-size: 11px; color: #555; margin-top: 8px; text-align: center; }
-        body.modo-claro .encuesta-box { background: #f0f0f0; border-color: #ddd; }
-        body.modo-claro .encuesta-pregunta, body.modo-claro .encuesta-opcion-label { color: #333; }
 
         /* ── FAVORITOS ──────────────────────────────────────────────────── */
         .btn-favorito {
@@ -1471,6 +1477,7 @@ if ($noticia_id > 0 && isset($conn)) {
             }
         }
     </style>
+    <link rel="stylesheet" href="assets/css/plec-3d.css?v=1">
 </head>
 <body>
 
@@ -1490,9 +1497,6 @@ function cerrarBienvenida() {
         <div class="bienvenida-linea"></div>
         <div class="bienvenida-titular" id="bienvenidaTitular">La verdad no espera.<br>Bienvenido al periodismo libre.</div>
         <p class="bienvenida-texto">Desde el corazón del Tolima, te traemos las noticias que importan. Sin filtros, sin censura, con la pasión de quienes creen en la información como herramienta de cambio.</p>
-        <div style="background:rgba(26,115,232,0.1); border:1px solid rgba(26,115,232,0.3); border-radius:8px; padding:10px 12px; margin-bottom:18px; font-size:11px; color:#9ab4e0; line-height:1.5;">
-            🖥️ Para una mejor experiencia en el sitio, activa el <b>modo escritorio</b> en el navegador de tu celular o computadora.
-        </div>
         <div class="bienvenida-fecha">
             📅 <?php
                 $dias = array("Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado");
@@ -1507,12 +1511,12 @@ function cerrarBienvenida() {
     </div>
 </div>
 
-<button class="menu-toggle" onclick="abrirNav()"><i class="fas fa-bars"></i></button>
+<button class="menu-toggle" onclick="abrirNav()" aria-label="Abrir menú"><i class="fas fa-bars"></i></button>
 
 <div id="sidebarMenu" class="sidebar">
     <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #222;">
-        <img src="img/logo-plec.jpg" style="width:55px; border-radius:4px;">
-        <a href="javascript:void(0)" onclick="cerrarNav()" style="color:#777; font-size:28px; text-decoration:none; line-height:1;">&times;</a>
+        <img src="img/logo-plec.jpg" alt="Noticias PLEC" style="width:55px; border-radius:4px;">
+        <a href="javascript:void(0)" onclick="cerrarNav()" aria-label="Cerrar menú" style="color:#777; font-size:28px; text-decoration:none; line-height:1;">&times;</a>
     </div>
     <!-- TARJETAS RÁPIDAS -->
     <div class="sidebar-quick-grid">
@@ -1557,7 +1561,6 @@ function cerrarBienvenida() {
         }
         ?>
     </div>
-</div>
 </div>
 
 <!-- MODAL MIS GUARDADOS -->
@@ -1641,7 +1644,7 @@ function cerrarBienvenida() {
 
 <div class="top-bar">
     <div style="display:flex; align-items:center; gap:15px;">
-        <img src="img/logo-plec.jpg" style="height:35px; border-radius:3px;">
+        <img src="img/logo-plec.jpg" alt="Noticias PLEC" style="height:35px; border-radius:3px;">
         <span style="font-size:11px; font-weight:bold; color:#777; text-transform:uppercase;">
             <?php
             $dias = array("Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado");
@@ -1685,12 +1688,13 @@ function cerrarBienvenida() {
     </div>
 </div>
 
-<header>
-    <a href="index.php" style="text-decoration:none;"><h1 class="logo-text">Noticias <span>PLEC</span></h1></a>
+<header class="plec-hero">
+    <canvas class="plec-globe" aria-hidden="true"></canvas>
+    <a href="index.php" class="plec-logo-wrap"><h1 class="logo-text">Noticias <span>PLEC</span></h1></a>
     <div class="slogan">#SOMOSTODOS | NOTICIERO INDEPENDIENTE</div>
 </header>
 
-<nav style="position:relative;">
+<nav class="plec-nav">
     <div class="nav-ultimahora-wrap">
         <span class="nav-ultimahora"><i class="fas fa-bolt"></i> ÚLTIMA HORA</span>
     </div>
@@ -1729,6 +1733,7 @@ function cerrarBienvenida() {
     </div>
 </div>
 
+<main>
     <?php
     function obtenerRutaImagen($img_db) {
         if (empty($img_db)) return "img/placeholder.svg";
@@ -1863,20 +1868,20 @@ function cerrarBienvenida() {
                     $noticias_pagina++;
                     $img = obtenerRutaImagen($row['imagen']);
                     // Resaltar término buscado en el resumen
-                    $contenido_plano = strip_tags($row['contenido']);
+                    $contenido_plano = trim(preg_replace('/s+/u', ' ', strip_tags($row['contenido'])));
                     if (!empty($busqueda)) {
-                        $pos = stripos($contenido_plano, $busqueda);
+                        $pos = mb_stripos($contenido_plano, $busqueda);
                         if ($pos !== false) {
                             $inicio = max(0, $pos - 40);
-                            $txt_res = ($inicio > 0 ? '...' : '') . substr($contenido_plano, $inicio, 160) . '...';
+                            $txt_res = ($inicio > 0 ? '...' : '') . mb_substr($contenido_plano, $inicio, 160) . '...';
                         } else {
-                            $txt_res = substr($contenido_plano, 0, 130) . '...';
+                            $txt_res = plec_resumen($contenido_plano, 130);
                         }
                         // Resaltar en título y resumen
-                        $titulo_hl = preg_replace('/(' . preg_quote(htmlspecialchars($busqueda), '/') . ')/i', '<mark style="background:#ffcc00;color:#000;border-radius:2px;padding:0 2px;">$1</mark>', htmlspecialchars($row['titulo']));
-                        $resumen_hl = preg_replace('/(' . preg_quote(htmlspecialchars($busqueda), '/') . ')/i', '<mark style="background:#ffcc00;color:#000;border-radius:2px;padding:0 2px;">$1</mark>', htmlspecialchars($txt_res));
+                        $titulo_hl = preg_replace('/(' . preg_quote(htmlspecialchars($busqueda), '/') . ')/iu', '<mark style="background:#ffcc00;color:#000;border-radius:2px;padding:0 2px;">$1</mark>', htmlspecialchars($row['titulo']));
+                        $resumen_hl = preg_replace('/(' . preg_quote(htmlspecialchars($busqueda), '/') . ')/iu', '<mark style="background:#ffcc00;color:#000;border-radius:2px;padding:0 2px;">$1</mark>', htmlspecialchars($txt_res));
                     } else {
-                        $txt_res = substr($contenido_plano, 0, 130) . '...';
+                        $txt_res = plec_resumen($contenido_plano, 130);
                         $titulo_hl = htmlspecialchars($row['titulo']);
                         $resumen_hl = htmlspecialchars($txt_res);
                     }
@@ -1884,7 +1889,7 @@ function cerrarBienvenida() {
                     $cls_inc = $es_inclusion ? ' inclusion' : '';
                     ?>
                     <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($row['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row['id']), ENT_QUOTES, 'UTF-8'); ?>)">
-                        <div class='img-box' style="height:180px;"><img src='<?php echo $img; ?>' loading="lazy"></div>
+                        <div class='img-box' style="height:180px;"><img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($row['titulo']); ?>" loading="lazy"></div>
                         <div class='info-card'>
                             <span class='cat-tag<?php echo $cls_inc; ?>'><?php echo isset($row['cat_nombre']) ? htmlspecialchars($row['cat_nombre']) : 'General'; ?></span>
                             <h4><?php echo $titulo_hl; ?></h4>
@@ -1938,10 +1943,10 @@ function cerrarBienvenida() {
                     <div class="principal-laterales">
                         <?php for($i = 1; $i <= 2; $i++): if(isset($noticias_top[$i])): 
                             $img = obtenerRutaImagen($noticias_top[$i]['imagen']);
-                            $txt_res = substr(strip_tags($noticias_top[$i]['contenido']), 0, 110) . "...";
+                            $txt_res = plec_resumen($noticias_top[$i]['contenido'], 110);
                         ?>
                             <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
-                                <div class='img-box'><img src='<?php echo $img; ?>'></div>
+                                <div class='img-box'><img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?>"></div>
                                 <div class='info-card'>
                                     <span class='cat-tag'><?php echo htmlspecialchars($noticias_top[$i]['cat_nombre']); ?></span>
                                     <h3><?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?></h3>
@@ -1955,12 +1960,12 @@ function cerrarBienvenida() {
                         <?php 
                         if(isset($noticias_top[0])):
                             $img_c = obtenerRutaImagen($noticias_top[0]['imagen']);
-                            $txt_res_c = substr(strip_tags($noticias_top[0]['contenido']), 0, 220) . "...";
+                            $txt_res_c = plec_resumen($noticias_top[0]['contenido'], 220);
                             $es_nuevo_c = (intval($noticias_top[0]['horas_publicada']) <= 48);
                         ?>
                         <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[0]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img_c), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                             <div class='img-box' style="position:relative;">
-                                <img src='<?php echo $img_c; ?>'>
+                                <img src='<?php echo htmlspecialchars($img_c); ?>' alt="<?php echo htmlspecialchars($noticias_top[0]['titulo']); ?>" fetchpriority="high">
                                 <?php if($es_nuevo_c): ?><span class='badge-nuevo badge-nuevo-lg'><i class="fas fa-bolt"></i> NUEVO</span><?php endif; ?>
                             </div>
                             <div class='info-card'>
@@ -1975,12 +1980,12 @@ function cerrarBienvenida() {
                     <div class="principal-laterales">
                         <?php for($i = 3; $i <= 4; $i++): if(isset($noticias_top[$i])): 
                             $img = obtenerRutaImagen($noticias_top[$i]['imagen']);
-                            $txt_res = substr(strip_tags($noticias_top[$i]['contenido']), 0, 110) . "...";
+                            $txt_res = plec_resumen($noticias_top[$i]['contenido'], 110);
                             $es_nuevo_l = (intval($noticias_top[$i]['horas_publicada']) <= 48);
                         ?>
                             <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                                 <div class='img-box' style="position:relative;">
-                                    <img src='<?php echo $img; ?>'>
+                                    <img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?>">
                                     <?php if($es_nuevo_l): ?><span class='badge-nuevo'><i class="fas fa-bolt"></i> NUEVO</span><?php endif; ?>
                                 </div>
                                 <div class='info-card'>
@@ -2053,13 +2058,13 @@ function cerrarBienvenida() {
                     echo "<div class='seccion-grid'>";
                     while($row_sec = mysqli_fetch_assoc($res_sec)) {
                         $img = obtenerRutaImagen($row_sec['imagen']);
-                        $txt_res = substr(strip_tags($row_sec['contenido']), 0, 100) . "...";
+                        $txt_res = plec_resumen($row_sec['contenido'], 100);
                         $es_nuevo = (intval($row_sec['horas_publicada']) <= $horas_nuevo);
                         $cls_inc = ($id_cat == 16) ? ' inclusion' : '';
                         ?>
                         <div class='card card-seccion' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($row_sec['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($row_sec['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                             <div class='img-box' style="position:relative;">
-                                <img src='<?php echo $img; ?>' loading="lazy">
+                                <img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($row_sec['titulo']); ?>" loading="lazy">
                                 <?php if($es_nuevo): ?>
                                 <span class='badge-nuevo'><i class="fas fa-bolt"></i> NUEVO</span>
                                 <?php endif; ?>
@@ -2103,7 +2108,7 @@ function cerrarBienvenida() {
                             ?>
                             <div onclick="abrirModal(<?php echo htmlspecialchars(json_encode($r_edi['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img_edi), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($r_edi['id']), ENT_QUOTES, 'UTF-8'); ?>)" style="cursor:pointer;">
                                 <h3><?php echo htmlspecialchars($r_edi['titulo']); ?></h3>
-                                <p class='resumen-text' style="color:#aaa;"><?php echo htmlspecialchars(substr(strip_tags($r_edi['contenido']), 0, 180)) . "..."; ?></p>
+                                <p class='resumen-text' style="color:#aaa;"><?php echo htmlspecialchars(plec_resumen($r_edi['contenido'], 180)); ?></p>
                             </div>
                             <?php
                         } else {
@@ -2128,7 +2133,7 @@ function cerrarBienvenida() {
                                 $cont_col = $col_data['contenido'];
                                 ?>
                                 <div class="columnista-item" onclick="abrirModal(<?php echo htmlspecialchars(json_encode($tit_col), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($foto_columnista), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($cont_col), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($col_data['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($col_data['id']), ENT_QUOTES, 'UTF-8'); ?>)" style="cursor:pointer;">
-                                    <img src="<?php echo $foto_columnista; ?>" class="columnista-avatar" onerror="this.src='img/avatar.png'">
+                                    <img src="<?php echo htmlspecialchars($foto_columnista); ?>" alt="" class="columnista-avatar" loading="lazy" onerror="this.onerror=null;this.src='img/placeholder.svg'">
                                     <div class="columnista-info">
                                         <h4><?php echo htmlspecialchars($tit_col); ?></h4>
                                         <p>Opinión PLEC</p> 
@@ -2140,7 +2145,7 @@ function cerrarBienvenida() {
                         } else {
                             ?>
                             <div class="columnista-item">
-                                <img src="img/avatar.png" class="columnista-avatar">
+                                <img src="img/placeholder.svg" alt="" class="columnista-avatar">
                                 <div class="columnista-info"><h4>Espacio Disponible</h4><p>Columna de Opinión</p></div>
                             </div>
                             <?php
@@ -2170,8 +2175,9 @@ function cerrarBienvenida() {
                         mysqli_free_result($res_impreso);
                     }
                     ?>
-                    <img src="<?php echo htmlspecialchars($img_impreso); ?>" class="impreso-img" onerror="this.src='img/placeholder.svg'">
-                    <br>
+                    <a href="impresos.php" class="plec-book" aria-label="Ver la edición impresa">
+                        <img src="<?php echo htmlspecialchars($img_impreso); ?>" alt="Portada de la última edición impresa" class="impreso-img" loading="lazy" onerror="this.onerror=null;this.src='img/placeholder.svg'">
+                    </a>
                     <a href="impresos.php" class="btn-impreso">Ver edición</a>
                 </div>
             </div>
@@ -2190,9 +2196,20 @@ function cerrarBienvenida() {
 
     <!-- LO MÁS LEÍDO -->
     <div class="mas-leido-box">
-        <h3><i class="fas fa-fire" style="color:var(--rojo);margin-right:8px;font-size:16px;"></i>Lo más leído hoy</h3>
+        <h3><i class="fas fa-fire" style="color:var(--rojo);margin-right:8px;font-size:16px;"></i>Lo más leído</h3>
         <div id="masLeidoLista">
-            <div style="color:#444;font-size:13px;padding:20px 0;text-align:center;">Cargando...</div>
+            <?php if (empty($mas_leidas)): ?>
+                <div style="color:#555;font-size:13px;padding:20px 0;text-align:center;">Aún no hay lecturas registradas.</div>
+            <?php else: foreach ($mas_leidas as $i_ml => $ml):
+                $cls_ml = ['top1', 'top2', 'top3'][$i_ml] ?? '';
+                $v_ml = intval($ml['vistas']); ?>
+                <a class="mas-leido-item" href="index.php?id=<?php echo intval($ml['id']); ?>">
+                    <div class="mas-leido-num <?php echo $cls_ml; ?>"><?php echo $i_ml + 1; ?></div>
+                    <div class="mas-leido-titulo"><?php echo htmlspecialchars(mb_strimwidth($ml['titulo'], 0, 90, '…')); ?>
+                        <span class="mas-leido-vistas"><?php echo number_format($v_ml, 0, ',', '.'); ?> lectura<?php echo $v_ml !== 1 ? 's' : ''; ?></span>
+                    </div>
+                </a>
+            <?php endforeach; endif; ?>
         </div>
     </div>
 
@@ -2227,10 +2244,10 @@ function cerrarBienvenida() {
 </div>
 <?php endif; ?>
 
-<div id="miModal" class="modal"><div class="modal-content"><span onclick="cerrarModal()" style="position:absolute; right:20px; top:10px; font-size:40px; color:#fff; cursor:pointer;">&times;</span><div id="modalBody"></div></div></div>
+<div id="miModal" class="modal" role="dialog" aria-modal="true" aria-label="Noticia"><div class="modal-content"><button type="button" class="plec-modal-cerrar" onclick="cerrarModal()" aria-label="Cerrar noticia">&times;</button><div id="modalBody"></div></div></div>
 
 <!-- BOTÓN VOLVER ARRIBA -->
-<button class="btn-arriba" id="btnArriba" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Volver arriba">▲</button>
+<button class="btn-arriba" id="btnArriba" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Volver arriba" aria-label="Volver arriba">▲</button>
 
 <footer>
     <div class="footer-container">
@@ -2276,20 +2293,39 @@ function cerrarBienvenida() {
 </div>
 
 <script>
-// ── TRANSMISIÓN EN VIVO — INDEX ──
+// ════════════════════════════════════════════════════════════════════
+// DATOS DEL SERVIDOR
+// ════════════════════════════════════════════════════════════════════
+window.PLEC_STREAM = <?php echo json_encode($stream, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+const PLEC_DOMINIO = <?php echo json_encode($dominio, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG); ?>;
+
+// ── UTILIDADES ────────────────────────────────────────────────────────────────
+function plecEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function plecStorage(tipo, accion, clave, valor) {
+    // localStorage/sessionStorage pueden fallar (modo privado, cookies bloqueadas)
+    try {
+        const st = window[tipo];
+        if (accion === 'get') return st.getItem(clave);
+        if (accion === 'set') return st.setItem(clave, valor);
+        if (accion === 'del') return st.removeItem(clave);
+    } catch (e) { return null; }
+}
+function bloquearScroll(si) { document.body.style.overflow = si ? 'hidden' : ''; }
+
+// ── TRANSMISIÓN EN VIVO (estado guardado en la BD desde el panel admin) ──────
 function verificarTransmisionLive() {
-    const activa = localStorage.getItem('plec-transmision-activa');
-    const titulo = localStorage.getItem('plec-transmision-titulo');
+    const s = window.PLEC_STREAM || {};
     const btn = document.getElementById('btnTransmisionLive');
     const banner = document.getElementById('bannerTransmision');
     const bannerTitulo = document.getElementById('bannerTransTitulo');
-    const bannerOculto = sessionStorage.getItem('plec-banner-trans-cerrado');
+    const bannerOculto = plecStorage('sessionStorage', 'get', 'plec-banner-trans-cerrado');
 
-    if (activa === '1' && btn) {
+    if (s.activo && s.embed && btn) {
         btn.style.display = 'flex';
-        // Mostrar el banner si no fue cerrado en esta sesión
         if (banner && !bannerOculto) {
-            if (titulo && bannerTitulo) bannerTitulo.textContent = titulo;
+            if (s.titulo && bannerTitulo) bannerTitulo.textContent = s.titulo;
             banner.classList.add('visible');
         }
     } else if (btn) {
@@ -2297,40 +2333,33 @@ function verificarTransmisionLive() {
         if (banner) banner.classList.remove('visible');
     }
 }
-
 function cerrarBannerTransmision() {
     const banner = document.getElementById('bannerTransmision');
     if (banner) banner.classList.remove('visible');
-    // Guardar en sessionStorage: el banner no vuelve a aparecer hasta cerrar/reabrir el tab
-    sessionStorage.setItem('plec-banner-trans-cerrado', '1');
+    plecStorage('sessionStorage', 'set', 'plec-banner-trans-cerrado', '1');
 }
-
 function abrirTransmisionLive() {
-    const embedUrl = localStorage.getItem('plec-transmision-embed');
-    if (!embedUrl) return;
-    document.getElementById('iframeTransmisionLive').src = embedUrl;
+    const s = window.PLEC_STREAM || {};
+    if (!s.embed) return;
+    document.getElementById('iframeTransmisionLive').src = s.embed;
     document.getElementById('modalTransmisionLive').classList.add('show');
-    document.body.style.overflow = 'hidden';
+    bloquearScroll(true);
 }
-
 function cerrarTransmisionLive() {
     document.getElementById('modalTransmisionLive').classList.remove('show');
     document.getElementById('iframeTransmisionLive').src = '';
-    document.body.style.overflow = '';
+    bloquearScroll(false);
 }
-
-// Verificar al cargar la página
-window.addEventListener('DOMContentLoaded', verificarTransmisionLive);
-
-// Cerrar al hacer click fuera del modal
-document.getElementById('modalTransmisionLive').addEventListener('click', function(e) {
+document.addEventListener('DOMContentLoaded', verificarTransmisionLive);
+document.getElementById('modalTransmisionLive').addEventListener('click', function (e) {
     if (e.target === this) cerrarTransmisionLive();
 });
-</script>
 
-<script>
-function abrirNav() { document.getElementById("sidebarMenu").style.width = "280px"; }
-function cerrarNav() { document.getElementById("sidebarMenu").style.width = "0"; }
+// ── MENÚ LATERAL ──────────────────────────────────────────────────────────────
+function abrirNav() { document.getElementById('sidebarMenu').style.width = '280px'; }
+function cerrarNav() { document.getElementById('sidebarMenu').style.width = '0'; }
+
+// ── VIDEO EMBEBIDO ────────────────────────────────────────────────────────────
 function plecVideoEmbed(url) {
     if (!url || url.trim() === '') return '';
     url = url.trim();
@@ -2338,25 +2367,26 @@ function plecVideoEmbed(url) {
     let embed = '';
     if (u.includes('youtube.com') || u.includes('youtu.be')) {
         let vid = null;
-        if (url.includes('watch?v='))      vid = url.split('watch?v=')[1].split(/[&?]/)[0];
-        else if (url.includes('/live/'))   vid = url.split('/live/')[1].split(/[&?]/)[0];
-        else if (url.includes('/shorts/')) vid = url.split('/shorts/')[1].split(/[&?]/)[0];
+        if (url.includes('watch?v='))      vid = url.split('watch?v=')[1].split(/[&?#]/)[0];
+        else if (url.includes('/live/'))   vid = url.split('/live/')[1].split(/[&?#]/)[0];
+        else if (url.includes('/shorts/')) vid = url.split('/shorts/')[1].split(/[&?#]/)[0];
+        else if (url.includes('/embed/'))  vid = url.split('/embed/')[1].split(/[&?#]/)[0];
         else { const m = url.match(/youtu\.be\/([a-zA-Z0-9_-]{5,15})/); if (m) vid = m[1]; }
-        if (vid) embed = `https://www.youtube.com/embed/${vid}?rel=0`;
+        if (vid && /^[a-zA-Z0-9_-]{5,20}$/.test(vid)) embed = `https://www.youtube.com/embed/${vid}?rel=0`;
     } else if (u.includes('vimeo.com')) {
-        const m = url.match(/vimeo\.com\/(\d+)/);
+        const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
         if (m) embed = `https://player.vimeo.com/video/${m[1]}`;
     } else if (u.includes('facebook.com') || u.includes('fb.watch')) {
         embed = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&show_text=false`;
     } else if (u.includes('tiktok.com')) {
-        const m = url.split('/video/');
-        if (m[1]) embed = `https://www.tiktok.com/embed/v2/${m[1].split('?')[0]}`;
+        const m = url.match(/\/video\/(\d+)/);
+        if (m) embed = `https://www.tiktok.com/embed/v2/${m[1]}`;
     } else if (u.includes('instagram.com')) {
-        const m = url.split('/p/');
-        if (m[1]) embed = `https://www.instagram.com/p/${m[1].split('/')[0]}/embed`;
+        const m = url.match(/instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/);
+        if (m) embed = `https://www.instagram.com/p/${m[1]}/embed`;
     } else if (u.includes('twitch.tv')) {
-        const canal = url.split('twitch.tv/')[1]?.split('/')[0];
-        if (canal) embed = `https://player.twitch.tv/?channel=${canal}&parent=${location.hostname}`;
+        const m = url.match(/twitch\.tv\/([a-zA-Z0-9_]+)/);
+        if (m) embed = `https://player.twitch.tv/?channel=${m[1]}&parent=${location.hostname}`;
     }
     if (!embed) return '';
     return `<div style="margin:22px 0;">
@@ -2364,7 +2394,7 @@ function plecVideoEmbed(url) {
             <i class="fas fa-play-circle"></i> VIDEO
         </span>
         <div style="position:relative;padding-bottom:56.25%;height:0;border-radius:10px;overflow:hidden;background:#000;">
-            <iframe src="${embed}"
+            <iframe src="${plecEsc(embed)}"
                 style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowfullscreen loading="lazy"></iframe>
@@ -2372,50 +2402,56 @@ function plecVideoEmbed(url) {
     </div>`;
 }
 
+// ── MODAL DE NOTICIA ──────────────────────────────────────────────────────────
+// La noticia abierta se guarda aquí; los botones (voz, QR, historia, guardar)
+// la leen de esta variable en vez de recibir el texto dentro del onclick, que
+// se rompía con comillas o saltos de línea en el contenido.
+let plecNoticiaActual = null;
+
 function abrirModal(t, i, c, v, id) {
-    v = v || '';
-    id = id || '';
-    const textoPlano = c.replace(/<[^>]*>/g,'');
-    const urlNoticia = id
-        ? 'https://noticiasplec-production.up.railway.app/index.php?id=' + id
-        : 'https://noticiasplec-production.up.railway.app';
-    const urlPagina = encodeURIComponent(urlNoticia);
-    const urlCompartirWA = encodeURIComponent('📰 ' + t + ' — Noticias PLEC: ' + urlNoticia);
-    const urlCompartirTG = encodeURIComponent(urlNoticia) + '&text=' + encodeURIComponent('📰 ' + t + ' — Noticias PLEC');
-    const favKey = 'fav_' + btoa(unescape(encodeURIComponent(t))).substring(0,20);
-    const yaGuardado = localStorage.getItem(favKey);
-    const videoHtml = plecVideoEmbed(v);
+    t = t || ''; i = i || ''; c = c || ''; v = v || ''; id = id ? String(id) : '';
+    const url = id ? PLEC_DOMINIO + '/index.php?id=' + encodeURIComponent(id) : PLEC_DOMINIO;
+    plecNoticiaActual = { titulo: t, imagen: i, contenido: c, video: v, id: id, url: url };
+
+    const yaGuardado = !!plecStorage('localStorage', 'get', plecFavKey(plecNoticiaActual));
+    const waTxt = encodeURIComponent('📰 ' + t + ' — Noticias PLEC: ' + url);
+    const tgUrl = encodeURIComponent(url) + '&text=' + encodeURIComponent('📰 ' + t + ' — Noticias PLEC');
+
     document.getElementById('modalBody').innerHTML = `
-        <h1 style="color:#fff; font-family:'Playfair Display';">${t}</h1>
-        <img src="${i}" style="width:100%; border-radius:8px; margin:20px 0;">
-        <div style="color:#ccc; line-height:1.7; font-size:18px;" id="modalContenidoTexto">${c}</div>
-        ${videoHtml}
+        <h1 style="color:#fff; font-family:'Playfair Display'; padding-right:52px;">${plecEsc(t)}</h1>
+        ${i ? `<img class="plec-modal-img" src="${plecEsc(i)}" alt="${plecEsc(t)}" style="width:100%; margin:20px 0; display:block;" onerror="this.onerror=null;this.src='img/placeholder.svg'">` : ''}
+        <div style="color:#ccc; line-height:1.7; font-size:18px; white-space:pre-line;" id="modalContenidoTexto">${c}</div>
+        ${plecVideoEmbed(v)}
         <div style="margin-top:20px; border-top:1px solid #333; padding-top:15px; display:flex; flex-wrap:wrap; gap:4px;">
-            <button class="btn-voz" id="btnVozModal" onclick="toggleVoz(this, '${textoPlano.replace(/'/g,"\\'")}')">
-                🔊 <span>Escuchar noticia</span>
-            </button>
-            <a class="btn-whatsapp" href="https://wa.me/?text=${urlCompartirWA}" target="_blank">
-                <i class="fab fa-whatsapp"></i> WhatsApp
-            </a>
-            <a class="btn-telegram" href="https://t.me/share/url?url=${urlCompartirTG}" target="_blank">
-                <i class="fab fa-telegram-plane"></i> Telegram
-            </a>
-            <button class="btn-qr" onclick="abrirQR('${encodeURIComponent(t)}')">
-                ◻ QR
-            </button>
-            <button class="btn-ig" onclick="abrirIG('${t.replace(/'/g,"\\'")}', '${i}')">
-                <i class="fab fa-instagram"></i> Historia
-            </button>
-            <button class="btn-favorito ${yaGuardado ? 'guardado' : ''}" id="btnFavModal" onclick="toggleFavorito('${favKey}','${t.replace(/'/g,"\\'")}',this)" title="Guardar noticia">
-                ${yaGuardado ? '★' : '☆'} Guardar
-            </button>
+            <button type="button" class="btn-voz" id="btnVozModal" onclick="toggleVoz(this)">🔊 <span>Escuchar noticia</span></button>
+            <a class="btn-whatsapp" href="https://wa.me/?text=${waTxt}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+            <a class="btn-telegram" href="https://t.me/share/url?url=${tgUrl}" target="_blank" rel="noopener"><i class="fab fa-telegram-plane"></i> Telegram</a>
+            <button type="button" class="btn-qr" onclick="abrirQR()">◻ QR</button>
+            <button type="button" class="btn-ig" onclick="abrirIG()"><i class="fab fa-instagram"></i> Historia</button>
+            <button type="button" class="btn-favorito ${yaGuardado ? 'guardado' : ''}" id="btnFavModal" onclick="toggleFavorito(this)" title="Guardar noticia">${yaGuardado ? '★ Guardado' : '☆ Guardar'}</button>
         </div>`;
-    document.getElementById('miModal').style.display = "block";
-    registrarClick(t);
+
+    const modal = document.getElementById('miModal');
+    modal.style.display = 'block';
+    modal.scrollTop = 0;
+    bloquearScroll(true);
     registrarVistaReal(id);
 }
 
-// ── CONTADOR DE VISITAS REAL (guardado en la base de datos, solo visible en el admin) ──
+function cerrarModal() {
+    const modal = document.getElementById('miModal');
+    modal.style.display = 'none';
+    document.getElementById('modalBody').innerHTML = ''; // detiene videos que siguieran sonando
+    detenerVoz();
+    bloquearScroll(false);
+    // Si se entró por un enlace compartido (?id=), limpiar la URL para que al recargar no se reabra
+    if (/[?&]id=/.test(location.search) && history.replaceState) {
+        history.replaceState(null, '', location.pathname);
+    }
+}
+document.getElementById('miModal').addEventListener('click', function (e) { if (e.target === this) cerrarModal(); });
+
+// ── CONTADOR DE VISITAS REAL (columna `vistas`, alimenta "Lo más leído") ─────
 function registrarVistaReal(id) {
     if (!id) return;
     fetch('contar_vista.php', {
@@ -2424,147 +2460,156 @@ function registrarVistaReal(id) {
         body: 'id=' + encodeURIComponent(id)
     }).catch(() => {});
 }
-function cerrarModal() { document.getElementById('miModal').style.display = "none"; }
 
-// TEMA CLARO / OSCURO
+// ── TEMA CLARO / OSCURO ───────────────────────────────────────────────────────
 function toggleTema() {
-    const body = document.body;
-    const btn = document.getElementById('btnTema');
-    const esModoClaro = body.classList.toggle('modo-claro');
-    btn.textContent = esModoClaro ? '🌙' : '☀️';
-    localStorage.setItem('tema-plec', esModoClaro ? 'claro' : 'oscuro');
+    const esModoClaro = document.body.classList.toggle('modo-claro');
+    document.getElementById('btnTema').textContent = esModoClaro ? '🌙' : '☀️';
+    plecStorage('localStorage', 'set', 'tema-plec', esModoClaro ? 'claro' : 'oscuro');
 }
-// Restaurar tema guardado
-(function() {
-    const tema = localStorage.getItem('tema-plec');
-    if (tema === 'claro') {
-        document.body.classList.add('modo-claro');
-        window.addEventListener('DOMContentLoaded', function() {
-            const btn = document.getElementById('btnTema');
-            if(btn) btn.textContent = '🌙';
-        });
-    }
-})();
+if (plecStorage('localStorage', 'get', 'tema-plec') === 'claro') {
+    document.body.classList.add('modo-claro');
+    document.addEventListener('DOMContentLoaded', function () {
+        const btn = document.getElementById('btnTema');
+        if (btn) btn.textContent = '🌙';
+    });
+}
+
+// ── BIENVENIDA (una vez por sesión, no en cada clic de categoría) ───────────
 const titulares = [
     "La verdad no espera.<br>Bienvenido al periodismo libre.",
     "Cada noticia, una historia.<br>Cada historia, una voz del Tolima.",
     "Informar es un acto de valentía.<br>Leer, uno de libertad."
 ];
 let tIdx = 0;
-// cerrarBienvenida definida en bloque inline sobre el modal
-window.addEventListener('DOMContentLoaded', function() {
-    const puntos = document.querySelectorAll('.bienvenida-puntos span');
-    setInterval(function() {
-        tIdx = (tIdx + 1) % titulares.length;
-        document.getElementById('bienvenidaTitular').innerHTML = titulares[tIdx];
-        puntos.forEach((p, i) => p.classList.toggle('activo', i === tIdx));
-    }, 2800);
-    // Mostrar siempre al iniciar el sitio
-    setTimeout(function() {
-        var m = document.getElementById('modalBienvenida');
-        if (m) { m.style.display = 'flex'; m.classList.add('show'); }
-        document.body.style.overflow = 'hidden';
-    }, 300);
+document.addEventListener('DOMContentLoaded', function () {
+    const yaVista = plecStorage('sessionStorage', 'get', 'plec-bienvenida-vista') === '1';
+    const vieneDeEnlace = <?php echo ($noticia_id > 0 && $noticia_seo) ? 'true' : 'false'; ?>;
+
+    if (!yaVista && !vieneDeEnlace) {
+        const puntos = document.querySelectorAll('.bienvenida-puntos span');
+        const titular = document.getElementById('bienvenidaTitular');
+        const rotar = setInterval(function () {
+            const m = document.getElementById('modalBienvenida');
+            if (!m || !m.classList.contains('show')) { clearInterval(rotar); return; }
+            titular.classList.add('is-cambiando');
+            setTimeout(function () {
+                tIdx = (tIdx + 1) % titulares.length;
+                titular.innerHTML = titulares[tIdx];
+                puntos.forEach((p, i) => p.classList.toggle('activo', i === tIdx));
+                titular.classList.remove('is-cambiando');
+            }, 350);
+        }, 3200);
+        setTimeout(function () {
+            const m = document.getElementById('modalBienvenida');
+            if (m) { m.style.display = 'flex'; m.classList.add('show'); }
+            bloquearScroll(true);
+        }, 300);
+    }
 
     // BOTÓN VOLVER ARRIBA
     const btnArriba = document.getElementById('btnArriba');
-    window.addEventListener('scroll', function() {
+    window.addEventListener('scroll', function () {
         btnArriba.classList.toggle('visible', window.scrollY > 400);
-    });
+    }, { passive: true });
 
-    // CLIMA — OpenWeatherMap (Ibagué, Tolima)
+    // CLIMA — Open-Meteo (Ibagué, Tolima)
     fetch('https://api.open-meteo.com/v1/forecast?latitude=4.4389&longitude=-75.2322&current_weather=true&temperature_unit=celsius')
         .then(r => r.json())
         .then(d => {
             const temp = Math.round(d.current_weather.temperature);
             const cod = d.current_weather.weathercode;
-            const iconos = { 0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️', 45:'🌫️', 48:'🌫️', 51:'🌦️', 61:'🌧️', 80:'🌦️', 95:'⛈️' };
-            const icono = iconos[cod] || iconos[Math.floor(cod/10)*10] || '🌡️';
+            const iconos = { 0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️', 51: '🌦️', 61: '🌧️', 80: '🌦️', 95: '⛈️' };
+            const icono = iconos[cod] || iconos[Math.floor(cod / 10) * 10] || '🌡️';
             document.getElementById('climaTemp').textContent = temp + '°C';
             document.getElementById('climaIcono').textContent = icono;
         })
         .catch(() => { document.getElementById('climaTemp').textContent = '--°C'; });
-
 });
 
-// LECTOR DE VOZ
-let vozActiva = null;
-function toggleVoz(btn, texto) {
-    if (vozActiva && window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        btn.classList.remove('leyendo');
-        btn.querySelector('span').textContent = 'Escuchar noticia';
-        vozActiva = null;
+// ── LECTOR DE VOZ (lee por frases: Chrome corta las lecturas largas) ─────────
+function detenerVoz() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    const btn = document.getElementById('btnVozModal');
+    if (btn) { btn.classList.remove('leyendo'); btn.querySelector('span').textContent = 'Escuchar noticia'; }
+}
+function toggleVoz(btn) {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+        alert('Tu navegador no permite leer en voz alta.');
         return;
     }
-    const utterance = new SpeechSynthesisUtterance(texto.substring(0, 2000));
-    utterance.lang = 'es-CO';
-    utterance.rate = 0.95;
-    utterance.onstart = () => { btn.classList.add('leyendo'); btn.querySelector('span').textContent = 'Detener lectura'; };
-    utterance.onend = () => { btn.classList.remove('leyendo'); btn.querySelector('span').textContent = 'Escuchar noticia'; vozActiva = null; };
-    window.speechSynthesis.speak(utterance);
-    vozActiva = utterance;
+    if (window.speechSynthesis.speaking) { detenerVoz(); return; }
+    const cont = document.getElementById('modalContenidoTexto');
+    const texto = ((plecNoticiaActual ? plecNoticiaActual.titulo + '. ' : '') + (cont ? cont.textContent : '')).replace(/\s+/g, ' ').trim();
+    const frases = texto.match(/[^.!?¡¿]+[.!?]*|[¡¿][^!?]+[!?]/g) || [texto];
+    const trozos = [];
+    let actual = '';
+    frases.forEach(f => {
+        if ((actual + f).length > 220 && actual) { trozos.push(actual); actual = ''; }
+        actual += f;
+    });
+    if (actual.trim()) trozos.push(actual);
+
+    btn.classList.add('leyendo');
+    btn.querySelector('span').textContent = 'Detener lectura';
+    trozos.forEach((trozo, idx) => {
+        const u = new SpeechSynthesisUtterance(trozo.trim());
+        u.lang = 'es-CO';
+        u.rate = 0.95;
+        if (idx === trozos.length - 1) u.onend = detenerVoz;
+        window.speechSynthesis.speak(u);
+    });
 }
 
 // ── ALTO CONTRASTE ────────────────────────────────────────────────────────────
 function toggleAltoContraste() {
     document.body.classList.toggle('alto-contraste');
-    localStorage.setItem('plec-contraste', document.body.classList.contains('alto-contraste') ? '1' : '0');
+    plecStorage('localStorage', 'set', 'plec-contraste', document.body.classList.contains('alto-contraste') ? '1' : '0');
 }
-(function(){ if(localStorage.getItem('plec-contraste')==='1') document.body.classList.add('alto-contraste'); })();
+if (plecStorage('localStorage', 'get', 'plec-contraste') === '1') document.body.classList.add('alto-contraste');
 
-// ── ENCUESTA ──────────────────────────────────────────────────────────────────
-(function initEncuesta() {
-    const votos = JSON.parse(localStorage.getItem('plec-encuesta-votos') || '[10,6,14]');
-    const votado = localStorage.getItem('plec-encuesta-votado');
-    actualizarEncuesta(votos, votado);
-})();
-function votarEncuesta(idx) {
-    if (localStorage.getItem('plec-encuesta-votado')) return;
-    const votos = JSON.parse(localStorage.getItem('plec-encuesta-votos') || '[10,6,14]');
-    votos[idx]++;
-    localStorage.setItem('plec-encuesta-votos', JSON.stringify(votos));
-    localStorage.setItem('plec-encuesta-votado', '1');
-    actualizarEncuesta(votos, '1');
+// ── FAVORITOS (por id de noticia; antes dos títulos parecidos chocaban) ─────
+function plecFavKey(n) {
+    if (n.id) return 'fav_id_' + n.id;
+    return 'fav_' + btoa(unescape(encodeURIComponent(n.titulo))).substring(0, 20);
 }
-function actualizarEncuesta(votos, votado) {
-    const total = votos.reduce((a,b)=>a+b,0);
-    for(let i=0;i<3;i++){
-        const pct = total > 0 ? Math.round(votos[i]/total*100) : 0;
-        const b = document.getElementById('barra'+i);
-        const p = document.getElementById('pct'+i);
-        if(b) b.style.width = pct+'%';
-        if(p) p.textContent = pct+'%';
-    }
-    const vEl = document.getElementById('encuestaVoted');
-    if(vEl) vEl.textContent = votado ? total+' votos en total' : 'Haz clic para votar';
-}
-
-// ── FAVORITOS ─────────────────────────────────────────────────────────────────
-function toggleFavorito(key, titulo, btn) {
-    if(localStorage.getItem(key)) {
-        localStorage.removeItem(key);
+function toggleFavorito(btn) {
+    const n = plecNoticiaActual;
+    if (!n) return;
+    const key = plecFavKey(n);
+    if (plecStorage('localStorage', 'get', key)) {
+        plecStorage('localStorage', 'del', key);
         btn.classList.remove('guardado');
         btn.textContent = '☆ Guardar';
     } else {
-        localStorage.setItem(key, titulo);
+        plecStorage('localStorage', 'set', key, JSON.stringify({ id: n.id, titulo: n.titulo }));
         btn.classList.add('guardado');
         btn.textContent = '★ Guardado';
     }
     actualizarBadgeGuardados();
 }
-function actualizarBadgeGuardados() {
-    const keys = [];
-    for(let i=0;i<localStorage.length;i++){
-        const k = localStorage.key(i);
-        if(k && k.startsWith('fav_')) keys.push(k);
-    }
-    const badge = document.getElementById('badgeGuardadosCnt');
-    if(!badge) return;
-    if(keys.length > 0){ badge.textContent = keys.length; badge.style.display='inline-flex'; }
-    else { badge.style.display='none'; }
+function plecLeerGuardados() {
+    const lista = [];
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (!k || !k.startsWith('fav_')) continue;
+            const raw = localStorage.getItem(k) || '';
+            let item = { key: k, id: '', titulo: raw };
+            try { const o = JSON.parse(raw); if (o && o.titulo) item = { key: k, id: o.id || '', titulo: o.titulo }; } catch (e) {}
+            lista.push(item);
+        }
+    } catch (e) {}
+    return lista;
 }
-window.addEventListener('DOMContentLoaded', actualizarBadgeGuardados);
+function actualizarBadgeGuardados() {
+    const total = plecLeerGuardados().length;
+    const badge = document.getElementById('badgeGuardadosCnt');
+    if (!badge) return;
+    badge.textContent = total;
+    badge.style.display = total > 0 ? 'inline-flex' : 'none';
+}
+document.addEventListener('DOMContentLoaded', actualizarBadgeGuardados);
 
 // ── MODAL MIS GUARDADOS ───────────────────────────────────────────────────────
 const GUARDADOS_POR_PAGINA = 8;
@@ -2573,33 +2618,30 @@ let todosGuardados = [];
 
 function abrirGuardados() {
     cerrarNav();
-    todosGuardados = [];
-    for(let i=0;i<localStorage.length;i++){
-        const k = localStorage.key(i);
-        if(k && k.startsWith('fav_')) todosGuardados.push({ key: k, titulo: localStorage.getItem(k) });
-    }
+    todosGuardados = plecLeerGuardados();
     guardadosPagina = 1;
     renderGuardadosModal();
     document.getElementById('modalGuardados').classList.add('show');
-    document.body.style.overflow='hidden';
+    bloquearScroll(true);
 }
 function cerrarGuardados() {
     document.getElementById('modalGuardados').classList.remove('show');
-    document.body.style.overflow='';
+    bloquearScroll(false);
 }
 function renderGuardadosModal() {
     const lista = document.getElementById('guardadosLista');
     const btnMas = document.getElementById('btnCargarMasGuardados');
-    if(todosGuardados.length === 0){
+    if (todosGuardados.length === 0) {
         lista.innerHTML = '<div class="guardados-vacio"><div>⭐</div>Aún no has guardado noticias.<br><small style="color:#555;">Abre una noticia y toca ★ Guardar.</small></div>';
-        btnMas.style.display='none'; return;
+        btnMas.style.display = 'none';
+        return;
     }
     const visibles = todosGuardados.slice(0, guardadosPagina * GUARDADOS_POR_PAGINA);
     lista.innerHTML = visibles.map((item, idx) => `
-        <div class="guardado-card" onclick="abrirGuardadoPorTitulo('${item.titulo.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-            <div class="guardado-num">${idx+1}</div>
-            <div class="guardado-titulo">${item.titulo}</div>
-            <button class="guardado-eliminar" onclick="event.stopPropagation(); eliminarGuardado('${item.key}')" title="Eliminar">✕</button>
+        <div class="guardado-card" onclick="abrirGuardado(${idx})">
+            <div class="guardado-num">${idx + 1}</div>
+            <div class="guardado-titulo">${plecEsc(item.titulo)}</div>
+            <button type="button" class="guardado-eliminar" onclick="event.stopPropagation(); eliminarGuardado(${idx})" title="Eliminar" aria-label="Eliminar">✕</button>
         </div>`).join('');
     btnMas.style.display = (visibles.length < todosGuardados.length) ? 'block' : 'none';
 }
@@ -2607,26 +2649,22 @@ function cargarMasGuardados() {
     guardadosPagina++;
     renderGuardadosModal();
 }
-function eliminarGuardado(key) {
-    localStorage.removeItem(key);
-    todosGuardados = todosGuardados.filter(i => i.key !== key);
+function eliminarGuardado(idx) {
+    const item = todosGuardados[idx];
+    if (!item) return;
+    plecStorage('localStorage', 'del', item.key);
+    todosGuardados.splice(idx, 1);
     renderGuardadosModal();
     actualizarBadgeGuardados();
 }
-function abrirGuardadoPorTitulo(titulo) {
+function abrirGuardado(idx) {
+    const item = todosGuardados[idx];
+    if (!item) return;
     cerrarGuardados();
-    // Buscar la noticia en el DOM por título y abrirla si existe, si no mostrar aviso
-    const cards = document.querySelectorAll('.card');
-    for(const card of cards){
-        const h = card.querySelector('h2,h3,h4');
-        if(h && h.textContent.trim() === titulo.trim()){
-            card.click(); return;
-        }
-    }
-    // Si no está en pantalla, mostrar aviso
-    alert('Busca esta noticia en el sitio:\n\n' + titulo);
+    // Con id se abre la noticia exacta; los guardados antiguos (solo título) se buscan
+    location.href = item.id ? 'index.php?id=' + encodeURIComponent(item.id) : 'index.php?s=' + encodeURIComponent(item.titulo);
 }
-document.getElementById('modalGuardados').addEventListener('click', function(e){ if(e.target===this) cerrarGuardados(); });
+document.getElementById('modalGuardados').addEventListener('click', function (e) { if (e.target === this) cerrarGuardados(); });
 
 // ── MODAL OPINIÓN / COLUMNISTAS ───────────────────────────────────────────────
 const OPINION_POR_PAGINA = 6;
@@ -2637,188 +2675,172 @@ function abrirOpinion() {
     cerrarNav();
     opinionPagina = 1;
     opinionData = [];
+    document.getElementById('opinionGrid').innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:30px; color:#555;">Cargando columnistas...</div>';
     document.getElementById('modalOpinion').classList.add('show');
-    document.body.style.overflow='hidden';
+    bloquearScroll(true);
     cargarColumnistas();
 }
 function cerrarOpinion() {
     document.getElementById('modalOpinion').classList.remove('show');
-    document.body.style.overflow='';
+    bloquearScroll(false);
 }
 function cargarColumnistas() {
-    fetch('get_columnistas.php?limit=' + OPINION_POR_PAGINA + '&offset=' + ((opinionPagina-1)*OPINION_POR_PAGINA))
-    .then(r=>r.json())
-    .then(data => {
-        opinionData = opinionData.concat(data.items || []);
-        renderOpinionModal(data.total || 0);
-    })
-    .catch(()=>{
-        // Fallback: mostrar los que ya están en el DOM (sección opinión/columnistas)
-        const cols = document.querySelectorAll('.columnista-item');
-        if(cols.length > 0){
+    fetch('get_columnistas.php?limit=' + OPINION_POR_PAGINA + '&offset=' + ((opinionPagina - 1) * OPINION_POR_PAGINA))
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(data => {
+            opinionData = opinionData.concat(data.items || []);
+            renderOpinionModal(data.total || 0);
+        })
+        .catch(() => {
+            // Respaldo: usar los columnistas que ya están en la portada
+            const cols = document.querySelectorAll('.columnista-item[onclick]');
             const grid = document.getElementById('opinionGrid');
-            grid.innerHTML = Array.from(cols).map(col=>{
-                const img = col.querySelector('img') ? col.querySelector('img').src : 'img/avatar.png';
-                const titulo = col.querySelector('h4') ? col.querySelector('h4').textContent : '';
-                const sub = col.querySelector('p') ? col.querySelector('p').textContent : 'Opinión PLEC';
-                return `<div class="opinion-card" onclick="${col.getAttribute('onclick') || ''}">
-                    <img src="${img}" class="opinion-avatar" onerror="this.src='img/avatar.png'">
-                    <div class="opinion-info"><h4>${titulo}</h4><p>${sub}</p><span>Toca para leer columna</span></div>
-                </div>`;
-            }).join('');
-            document.getElementById('btnCargarMasOpinion').style.display='none';
-        } else {
-            document.getElementById('opinionGrid').innerHTML='<div style="grid-column:1/-1;text-align:center;padding:30px;color:#555;">No hay columnistas disponibles.</div>';
-        }
-    });
+            if (cols.length > 0) {
+                grid.innerHTML = '';
+                cols.forEach(col => {
+                    const card = document.createElement('div');
+                    card.className = 'opinion-card';
+                    const img = col.querySelector('img') ? col.querySelector('img').getAttribute('src') : 'img/placeholder.svg';
+                    const titulo = col.querySelector('h4') ? col.querySelector('h4').textContent : '';
+                    card.innerHTML = `<img src="${plecEsc(img)}" alt="" class="opinion-avatar" onerror="this.onerror=null;this.src='img/placeholder.svg'">
+                        <div class="opinion-info"><h4>${plecEsc(titulo)}</h4><p>Opinión PLEC</p><span>Toca para leer columna</span></div>`;
+                    card.addEventListener('click', () => { cerrarOpinion(); col.click(); });
+                    grid.appendChild(card);
+                });
+            } else {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:#555;">No hay columnistas disponibles.</div>';
+            }
+            document.getElementById('btnCargarMasOpinion').style.display = 'none';
+        });
 }
 function renderOpinionModal(total) {
     const grid = document.getElementById('opinionGrid');
-    if(opinionData.length === 0){
-        grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:30px;color:#555;">No hay columnistas disponibles.</div>';
-        document.getElementById('btnCargarMasOpinion').style.display='none';
+    if (opinionData.length === 0) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:30px;color:#555;">No hay columnistas disponibles.</div>';
+        document.getElementById('btnCargarMasOpinion').style.display = 'none';
         return;
     }
-    grid.innerHTML = opinionData.map(col=>`
-        <div class="opinion-card" onclick="abrirModal(${JSON.stringify(col.titulo)}, ${JSON.stringify(col.imagen)}, ${JSON.stringify(col.contenido)}, ${JSON.stringify(col.video_url || "")}, ${JSON.stringify(col.id || "")})">
-            <img src="${col.imagen}" class="opinion-avatar" onerror="this.src='img/avatar.png'">
+    grid.innerHTML = opinionData.map((col, idx) => `
+        <div class="opinion-card" onclick="abrirColumna(${idx})">
+            <img src="${plecEsc(col.imagen)}" alt="" class="opinion-avatar" onerror="this.onerror=null;this.src='img/placeholder.svg'">
             <div class="opinion-info">
-                <h4>${col.titulo}</h4>
+                <h4>${plecEsc(col.titulo)}</h4>
                 <p>Opinión PLEC</p>
                 <span>Toca para leer columna</span>
             </div>
         </div>`).join('');
-    const btnMas = document.getElementById('btnCargarMasOpinion');
-    btnMas.style.display = (opinionData.length < total) ? 'block' : 'none';
+    document.getElementById('btnCargarMasOpinion').style.display = (opinionData.length < total) ? 'block' : 'none';
+}
+function abrirColumna(idx) {
+    const col = opinionData[idx];
+    if (!col) return;
+    cerrarOpinion(); // el modal de noticia quedaba DETRÁS del de opinión
+    abrirModal(col.titulo, col.imagen, col.contenido, col.video_url || '', col.id || '');
 }
 function cargarMasOpinion() {
     opinionPagina++;
     cargarColumnistas();
 }
-document.getElementById('modalOpinion').addEventListener('click', function(e){ if(e.target===this) cerrarOpinion(); });
+document.getElementById('modalOpinion').addEventListener('click', function (e) { if (e.target === this) cerrarOpinion(); });
 
-// ── LO MÁS LEÍDO (simulado con localStorage clicks) ──────────────────────────
-function registrarClick(titulo) {
-    const datos = JSON.parse(localStorage.getItem('plec-clicks') || '{}');
-    datos[titulo] = (datos[titulo] || 0) + 1;
-    localStorage.setItem('plec-clicks', JSON.stringify(datos));
-    renderMasLeido();
-}
-function renderMasLeido() {
-    const datos = JSON.parse(localStorage.getItem('plec-clicks') || '{}');
-    const sorted = Object.entries(datos).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    const el = document.getElementById('masLeidoLista');
-    if(!el) return;
-    if(sorted.length===0){ el.innerHTML='<div style="color:#444;font-size:13px;padding:20px 0;text-align:center;">Aún no hay datos</div>'; return; }
-    const clases = ['top1','top2','top3','',''];
-    el.innerHTML = sorted.map(([t,v],i)=>`
-        <div class="mas-leido-item">
-            <div class="mas-leido-num ${clases[i]||''}">${i+1}</div>
-            <div class="mas-leido-titulo">${t.substring(0,80)}${t.length>80?'…':''}<br><span style="font-size:10px;color:#555;">${v} lectura${v!==1?'s':''}</span></div>
-        </div>`).join('');
-}
-window.addEventListener('DOMContentLoaded', renderMasLeido);
-
-// ── TICKER LATERAL VERTICAL ───────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', function() {
-    const items = document.querySelectorAll('.ticker-item');
-    const track = document.getElementById('tickerLateralTrack');
-    if(!track || items.length === 0) return;
-    let html = '';
-    items.forEach(el => {
-        html += `<div class="ticker-lateral-item" title="${el.textContent.trim()}">${el.textContent.trim()}</div>`;
-    });
-    track.innerHTML = html + html; // duplicar para loop infinito
-});
-
-// ── QR ────────────────────────────────────────────────────────────────────────
-function abrirQR(tituloEnc) {
-    const url = 'https://noticiasplec-production.up.railway.app';
+// ── QR (ahora apunta a la noticia abierta, no solo a la portada) ──────────────
+function abrirQR() {
+    const url = plecNoticiaActual ? plecNoticiaActual.url : PLEC_DOMINIO;
     document.getElementById('qrUrl').textContent = url;
     const canvas = document.getElementById('qrCanvas');
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#fff';
-    ctx.fillRect(0,0,200,200);
+    ctx.fillRect(0, 0, 200, 200);
     ctx.fillStyle = '#1a73e8';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('noticiasplec-production', 100, 100);
-    ctx.font = '9px sans-serif';
-    ctx.fillStyle = '#555';
-    ctx.fillText('Escanea con tu cámara', 100, 120);
-    // Cargar QR real via API pública
+    ctx.fillText('Generando QR...', 100, 100);
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => { ctx.clearRect(0,0,200,200); ctx.drawImage(img,0,0,200,200); };
-    img.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+    img.onload = () => { ctx.clearRect(0, 0, 200, 200); ctx.drawImage(img, 0, 0, 200, 200); };
+    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(url);
     document.getElementById('modalQR').classList.add('show');
 }
 function cerrarQR() { document.getElementById('modalQR').classList.remove('show'); }
-document.getElementById('modalQR').addEventListener('click', function(e){ if(e.target===this) cerrarQR(); });
+document.getElementById('modalQR').addEventListener('click', function (e) { if (e.target === this) cerrarQR(); });
 
-// ── IMAGEN INSTAGRAM ──────────────────────────────────────────────────────────
-let igTitulo = '';
-function abrirIG(titulo, imgSrc) {
-    igTitulo = titulo;
+// ── IMAGEN PARA HISTORIA DE INSTAGRAM ─────────────────────────────────────────
+function abrirIG() {
+    if (!plecNoticiaActual) return;
+    const titulo = plecNoticiaActual.titulo, imgSrc = plecNoticiaActual.imagen;
     const canvas = document.getElementById('igCanvas');
     const ctx = canvas.getContext('2d');
     const W = 380, H = 380;
-    // Fondo degradado
-    const grad = ctx.createLinearGradient(0,0,W,H);
-    grad.addColorStop(0,'#121212'); grad.addColorStop(1,'#1a1a2e');
-    ctx.fillStyle = grad; ctx.fillRect(0,0,W,H);
-    // Intentar cargar imagen de fondo
-    const bg = new Image(); bg.crossOrigin='anonymous';
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#121212'); grad.addColorStop(1, '#1a1a2e');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+    const bg = new Image(); bg.crossOrigin = 'anonymous';
     bg.onload = () => {
-        ctx.globalAlpha = 0.3; ctx.drawImage(bg,0,0,W,H); ctx.globalAlpha = 1;
+        ctx.globalAlpha = 0.3; ctx.drawImage(bg, 0, 0, W, H); ctx.globalAlpha = 1;
         dibujarTextoIG(ctx, titulo, W, H);
     };
     bg.onerror = () => dibujarTextoIG(ctx, titulo, W, H);
-    bg.src = imgSrc;
+    bg.src = imgSrc || 'img/logo-plec.jpg';
     document.getElementById('modalIG').classList.add('show');
 }
 function dibujarTextoIG(ctx, titulo, W, H) {
-    // Overlay oscuro inferior
-    const overlay = ctx.createLinearGradient(0, H*0.4, 0, H);
-    overlay.addColorStop(0,'rgba(0,0,0,0)'); overlay.addColorStop(1,'rgba(0,0,0,0.92)');
-    ctx.fillStyle = overlay; ctx.fillRect(0,0,W,H);
-    // Logo
+    const overlay = ctx.createLinearGradient(0, H * 0.4, 0, H);
+    overlay.addColorStop(0, 'rgba(0,0,0,0)'); overlay.addColorStop(1, 'rgba(0,0,0,0.92)');
+    ctx.fillStyle = overlay; ctx.fillRect(0, 0, W, H);
     ctx.fillStyle = '#fff'; ctx.font = 'bold 22px "Playfair Display", serif';
-    ctx.textAlign = 'center'; ctx.fillText('Noticias PLEC', W/2, 44);
-    ctx.fillStyle = '#ff4d4d'; ctx.fillRect(W/2-40, 52, 80, 3);
-    // Título con wrap
+    ctx.textAlign = 'center'; ctx.fillText('Noticias PLEC', W / 2, 44);
+    ctx.fillStyle = '#ff4d4d'; ctx.fillRect(W / 2 - 40, 52, 80, 3);
     ctx.fillStyle = '#fff'; ctx.font = 'bold 18px sans-serif';
     const palabras = titulo.split(' '), lineas = [], maxW = W - 40;
     let linea = '';
-    palabras.forEach(p => { const t = linea ? linea+' '+p : p; if(ctx.measureText(t).width > maxW){ lineas.push(linea); linea=p; } else linea=t; });
+    palabras.forEach(p => { const t = linea ? linea + ' ' + p : p; if (ctx.measureText(t).width > maxW) { lineas.push(linea); linea = p; } else linea = t; });
     lineas.push(linea);
-    const yStart = H - 80 - (lineas.length-1)*26;
-    lineas.forEach((l,i) => ctx.fillText(l, W/2, yStart + i*26));
-    // URL
+    const yStart = H - 80 - (lineas.length - 1) * 26;
+    lineas.forEach((l, i) => ctx.fillText(l, W / 2, yStart + i * 26));
     ctx.fillStyle = '#1a73e8'; ctx.font = '12px sans-serif';
-    ctx.fillText('noticiasplec-production.up.railway.app · #SomosTodos', W/2, H-20);
+    ctx.fillText(PLEC_DOMINIO.replace(/^https?:\/\//, '') + ' · #SomosTodos', W / 2, H - 20);
 }
 function cerrarIG() { document.getElementById('modalIG').classList.remove('show'); }
 function descargarIG() {
     const a = document.createElement('a');
     a.download = 'historia-plec.png';
-    a.href = document.getElementById('igCanvas').toDataURL('image/png');
-    a.click();
+    try {
+        a.href = document.getElementById('igCanvas').toDataURL('image/png');
+        a.click();
+    } catch (e) {
+        alert('No se pudo generar la imagen (la foto viene de otro servidor). Haz una captura de pantalla.');
+    }
 }
-document.getElementById('modalIG').addEventListener('click', function(e){ if(e.target===this) cerrarIG(); });
+document.getElementById('modalIG').addEventListener('click', function (e) { if (e.target === this) cerrarIG(); });
+
+// ── TECLA ESCAPE: cierra la ventana que esté encima ──────────────────────────
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    const abierto = id => { const el = document.getElementById(id); return el && (el.classList.contains('show') || el.style.display === 'block' || el.style.display === 'flex'); };
+    if (abierto('modalIG')) return cerrarIG();
+    if (abierto('modalQR')) return cerrarQR();
+    if (abierto('miModal')) return cerrarModal();
+    if (abierto('modalTransmisionLive')) return cerrarTransmisionLive();
+    if (abierto('modalGuardados')) return cerrarGuardados();
+    if (abierto('modalOpinion')) return cerrarOpinion();
+    if (abierto('modalBienvenida')) return cerrarBienvenida();
+    cerrarNav();
+});
 
 <?php if ($noticia_id > 0 && $noticia_seo): ?>
-window.addEventListener('DOMContentLoaded', function() {
+// Enlace compartido (?id=): abrir directamente la noticia
+document.addEventListener('DOMContentLoaded', function () {
     abrirModal(
-        <?php echo json_encode($noticia_seo['titulo']); ?>,
-        <?php echo json_encode($img_seo_rel); ?>,
-        <?php echo json_encode($noticia_seo['contenido']); ?>,
-        <?php echo json_encode($noticia_seo['video_url'] ?? ''); ?>,
+        <?php echo json_encode($noticia_seo['titulo'], JSON_HEX_TAG | JSON_HEX_AMP); ?>,
+        <?php echo json_encode($img_seo_rel, JSON_HEX_TAG | JSON_HEX_AMP); ?>,
+        <?php echo json_encode($noticia_seo['contenido'], JSON_HEX_TAG | JSON_HEX_AMP); ?>,
+        <?php echo json_encode($noticia_seo['video_url'] ?? '', JSON_HEX_TAG | JSON_HEX_AMP); ?>,
         <?php echo json_encode($noticia_id); ?>
     );
 });
 <?php endif; ?>
 </script>
+<script src="assets/js/plec-3d.js?v=1" defer></script>
 </body>
 </html>
 <?php
