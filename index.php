@@ -66,6 +66,15 @@ if ($categoria_id === 0 && $busqueda === '') {
 
 $esta_filtrando = ($categoria_id > 0 || !empty($busqueda));
 
+// ── BIBLIOTECA INTERACTIVA: solo en la portada (no en categorías ni búsquedas).
+// Si no hay datos o falla, $biblio_activa queda en false y todo sigue como antes.
+$biblio_datos = ['paneles' => [], 'noticias' => []];
+if (!$esta_filtrando && isset($conn) && $conn) {
+    include_once __DIR__ . '/biblioteca_datos.php';
+    $biblio_datos = plec_biblioteca_datos($conn, 12);
+}
+$biblio_activa = !empty($biblio_datos['paneles']);
+
 // ── PAGINACIÓN ──
 $por_pagina = 50; // noticias por página en vista filtrada
 $pagina_actual = isset($_GET['p']) ? max(1, intval($_GET['p'])) : 1;
@@ -143,6 +152,16 @@ if ($noticia_id > 0 && isset($conn)) {
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Libre+Franklin:wght@300;400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script>document.documentElement.classList.add('plec-js');</script>
+<?php if ($biblio_activa): ?>
+    <script>
+    // Biblioteca: mientras carga su JS se oculta la portada clásica. Si en 4 s
+    // no arrancó (archivo caído, error), la portada clásica vuelve a mostrarse.
+    (function (d) {
+        d.classList.add('biblio-pendiente');
+        setTimeout(function () { if (!d.classList.contains('biblio-activa')) d.classList.remove('biblio-pendiente'); }, 4000);
+    })(document.documentElement);
+    </script>
+<?php endif; ?>
     <style>
         :root { --azul: #1a73e8; --bg: #121212; --card: #1e1e1e; --rojo: #ff4d4d; --texto-gris: #aaa; --inclusion: #8e44ad; }
         body { font-family: 'Libre Franklin', sans-serif; margin: 0; background: var(--bg); color: #e0e0e0; overflow-x: hidden; }
@@ -1478,6 +1497,9 @@ if ($noticia_id > 0 && isset($conn)) {
         }
     </style>
     <link rel="stylesheet" href="assets/css/plec-3d.css?v=1">
+<?php if ($biblio_activa): ?>
+    <link rel="stylesheet" href="assets/css/plec-biblioteca.css?v=1">
+<?php endif; ?>
 </head>
 <body>
 
@@ -1926,7 +1948,13 @@ function cerrarBienvenida() {
                 echo "</div>";
             }
 
-        } else { 
+        } else {
+            // 0. BIBLIOTECA INTERACTIVA (la arma assets/js/plec-biblioteca.js).
+            //    La portada clásica de abajo queda envuelta en .plec-portada-clasica:
+            //    se oculta solo cuando la biblioteca arrancó bien.
+            if ($biblio_activa) plec_biblioteca_render($biblio_datos);
+            echo '<div class="plec-portada-clasica" id="portadaClasica">';
+
             // 1. BLOQUE PRINCIPAL SUPERIOR BLINDADO
             $sql_top = "SELECT n.*, c.nombre as cat_nombre, TIMESTAMPDIFF(HOUR, n.fecha_publicacion, NOW()) as horas_publicada FROM noticias n LEFT JOIN categorias c ON n.categoria_id = c.id WHERE n.categoria_id NOT IN (13, 15) AND n.es_especial = 0 ORDER BY n.fecha_publicacion DESC LIMIT 5";
             $res_top = mysqli_query($conn, $sql_top);
@@ -2092,6 +2120,7 @@ function cerrarBienvenida() {
                 }
                 if($res_sec) { mysqli_free_result($res_sec); }
             }
+            echo '</div>'; // .plec-portada-clasica
 
             // 3. BLOQUE INFERIOR COMPUESTO (solo se muestra en el inicio, no en vista de categoría)
             if (!$esta_filtrando):
@@ -2841,6 +2870,9 @@ document.addEventListener('DOMContentLoaded', function () {
 <?php endif; ?>
 </script>
 <script src="assets/js/plec-3d.js?v=1" defer></script>
+<?php if ($biblio_activa): ?>
+<script src="assets/js/plec-biblioteca.js?v=1" defer></script>
+<?php endif; ?>
 </body>
 </html>
 <?php

@@ -1,0 +1,552 @@
+/* ════════════════════════════════════════════════════════════════════
+   NOTICIAS PLEC — BIBLIOTECA INTERACTIVA (portada)
+   Paneles de sección que se deslizan y se alinean al soltar, con un
+   estante de noticias por sección. Lo arma assets/js/plec-biblioteca.js.
+
+   Respaldo: la portada clásica (.plec-portada-clasica) solo se oculta
+   cuando <html> tiene .biblio-pendiente (cargando) o .biblio-activa
+   (arrancó bien). Sin JS ninguna de las dos existe y todo queda igual.
+   ════════════════════════════════════════════════════════════════════ */
+
+@property --biblio-acento {
+    syntax: '<color>';
+    inherits: true;
+    initial-value: #3b8cff;
+}
+
+/* ── INTERRUPTOR CLÁSICA / BIBLIOTECA ─────────────────────────────── */
+.biblio { display: none; }
+html.biblio-pendiente .plec-portada-clasica,
+html.biblio-activa .plec-portada-clasica { display: none; }
+html.biblio-pendiente .biblio,
+html.biblio-activa .biblio { display: block; }
+
+/* ── CONTENEDOR (ocupa todo el ancho de la ventana) ───────────────── */
+.biblio {
+    --biblio-ok: 1;                 /* el JS comprueba esto para saber que el CSS cargó */
+    --biblio-acento: #3b8cff;
+    --biblio-acento-rgb: 59, 140, 255;
+    --biblio-panel-ancho: min(1080px, calc(100% - 220px));
+    --biblio-hueco: 36px;
+    --biblio-libro-ancho: 176px;
+    --biblio-libro-alto: 248px;
+    --biblio-margen: 26px;
+    --biblio-ease: cubic-bezier(.2, .8, .2, 1);
+
+    position: relative;
+    box-sizing: border-box;
+    width: calc(100vw - var(--biblio-sbw, 0px));
+    margin: -6px 0 36px calc(50% - 50vw + var(--biblio-sbw, 0px) / 2);
+    padding: 6px 0 14px;
+    color: #e9e9ee;
+    transition: --biblio-acento .6s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+.biblio *, .biblio *::before, .biblio *::after { box-sizing: border-box; }
+
+/* Brillo de fondo del color de la sección activa */
+.biblio::before {
+    content: '';
+    position: absolute;
+    inset: 30px 0 0;
+    pointer-events: none;
+    background: radial-gradient(55% 65% at 50% 50%, rgba(var(--biblio-acento-rgb), .16), transparent 72%);
+    background: radial-gradient(55% 65% at 50% 50%, color-mix(in srgb, var(--biblio-acento) 18%, transparent), transparent 72%);
+}
+
+/* ── ESQUELETO MIENTRAS CARGA ─────────────────────────────────────── */
+.biblio-carga { display: none; }
+html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+    padding: 92px 20px 64px;
+    overflow: hidden;
+}
+.biblio-carga span {
+    flex: 0 0 auto;
+    width: var(--biblio-libro-ancho);
+    height: var(--biblio-libro-alto);
+    border-radius: 4px 10px 10px 4px;
+    background: linear-gradient(100deg, #1b1b20 30%, #2a2a33 50%, #1b1b20 70%);
+    background-size: 300% 100%;
+    animation: biblio-cargando 1.4s linear infinite;
+}
+@keyframes biblio-cargando { from { background-position: 100% 0; } to { background-position: -50% 0; } }
+
+/* ── PESTAÑAS DE SECCIÓN ──────────────────────────────────────────── */
+.biblio-cabecera {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+}
+.biblio-pestanas {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    max-width: 100%;
+    padding: 5px;
+    overflow-x: auto;
+    border-radius: 40px;
+    background: rgba(255, 255, 255, .04);
+    border: 1px solid rgba(255, 255, 255, .07);
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+}
+.biblio-pestanas::-webkit-scrollbar { display: none; }
+.biblio-pestana {
+    --acento: #3b8cff;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 15px;
+    border: 0;
+    border-radius: 30px;
+    background: transparent;
+    color: #9c9cad;
+    font: 700 11px/1 'Libre Franklin', sans-serif;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color .25s, background-color .25s, box-shadow .25s;
+}
+.biblio-pestana i { color: var(--acento); font-size: 13px; }
+.biblio-pestana:hover { color: #fff; background: rgba(255, 255, 255, .06); }
+.biblio-pestana[aria-selected="true"] {
+    color: #fff;
+    background: rgba(var(--acento-rgb), .2);
+    box-shadow: inset 0 0 0 1px rgba(var(--acento-rgb), .6), 0 0 18px rgba(var(--acento-rgb), .28);
+}
+.biblio-pestana:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+.biblio-ayuda { margin: 0; font-size: 11px; color: #747486; letter-spacing: .3px; text-align: center; }
+.biblio-ayuda kbd {
+    display: inline-block;
+    min-width: 20px;
+    padding: 2px 5px;
+    border: 1px solid #3a3a46;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    font: 700 10px/1.2 'Libre Franklin', sans-serif;
+    color: #b9b9c8;
+    text-align: center;
+}
+.biblio-ayuda-tactil { display: none; }
+@media (hover: none) {
+    .biblio-ayuda-raton { display: none; }
+    .biblio-ayuda-tactil { display: inline; }
+}
+
+/* ── ESCENARIO Y PANELES ──────────────────────────────────────────── */
+.biblio-escenario {
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+    padding: 20px 0 22px;
+    touch-action: pan-y;            /* el desplazamiento vertical sigue siendo de la página */
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.biblio.is-arrastrando .biblio-escenario,
+.biblio.is-arrastrando .biblio-escenario * { cursor: grabbing !important; }
+
+.biblio-pista {
+    display: grid;
+    perspective: 1700px;
+    perspective-origin: 50% 45%;
+}
+.biblio-panel {
+    --acento: #3b8cff;
+    --acento-rgb: 59, 140, 255;
+    grid-area: 1 / 1;
+    justify-self: center;
+    position: relative;
+    width: var(--biblio-panel-ancho);
+    padding: 22px 0 16px;
+    overflow: hidden;
+    border-radius: 20px;
+    background: linear-gradient(160deg, #1e1e26 0%, #141419 100%);
+    border: 1px solid rgba(255, 255, 255, .07);
+    box-shadow: 0 34px 60px -24px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .05);
+    transform-origin: 50% 50%;
+    will-change: transform, opacity;
+    backface-visibility: hidden;
+}
+/* Luz de color de la sección en la esquina */
+.biblio-panel::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(90% 80% at 0% 0%, rgba(var(--acento-rgb), .2), transparent 60%);
+}
+/* Franja superior de color */
+.biblio-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    z-index: 2;
+    background: linear-gradient(90deg, var(--acento), transparent 75%);
+}
+.biblio-panel:not(.is-activo) { cursor: pointer; }
+
+/* Nombre gigante de marca de agua */
+.biblio-panel-marca {
+    position: absolute;
+    right: -6px;
+    bottom: -34px;
+    font: 900 150px/1 'Playfair Display', serif;
+    color: rgba(255, 255, 255, .028);
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.biblio-panel-cab {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 var(--biblio-margen) 4px;
+}
+.biblio-panel-icono {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
+    background: rgba(var(--acento-rgb), .16);
+    box-shadow: inset 0 0 0 1px rgba(var(--acento-rgb), .4);
+    color: var(--acento);
+    font-size: 19px;
+}
+.biblio-panel-textos { min-width: 0; }
+.biblio-panel-titulo {
+    margin: 0;
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    line-height: 1.1;
+    color: #fff;
+}
+.biblio-panel-sub {
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: #8c8c9c;
+}
+.biblio-ver-todo {
+    margin-left: auto;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 16px;
+    border: 1px solid rgba(var(--acento-rgb), .5);
+    border-radius: 30px;
+    background: rgba(var(--acento-rgb), .1);
+    color: #fff;
+    font: 700 11px/1 'Libre Franklin', sans-serif;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color .25s, transform .25s var(--biblio-ease);
+}
+.biblio-ver-todo:hover { background: rgba(var(--acento-rgb), .28); transform: translateX(3px); }
+.biblio-ver-todo:focus-visible { outline: 2px solid var(--acento); outline-offset: 3px; }
+
+/* ── ESTANTE ──────────────────────────────────────────────────────── */
+.biblio-estante { position: relative; z-index: 1; }
+.biblio-estante-vista {
+    overflow: hidden;
+    padding: 18px 0 8px;            /* deja espacio para que el libro se eleve sin cortarse */
+}
+.biblio-estante-fila {
+    position: relative;
+    display: flex;
+    gap: 22px;
+    width: max-content;
+    margin: 0;
+    padding: 0 var(--biblio-margen);
+    list-style: none;
+    will-change: transform;
+}
+.biblio-item { flex: 0 0 auto; margin: 0; padding: 0; }
+
+/* La repisa sobre la que "se apoyan" los libros */
+.biblio-repisa {
+    position: relative;
+    height: 12px;
+    margin: -4px 14px 0;
+    border-radius: 3px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .03) 45%, rgba(0, 0, 0, .45));
+    box-shadow: 0 12px 18px -8px rgba(0, 0, 0, .85);
+}
+
+.biblio-progreso {
+    height: 3px;
+    margin: 12px var(--biblio-margen) 0;
+    overflow: hidden;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .07);
+}
+.biblio-progreso[hidden] { display: none; }
+.biblio-progreso span {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--acento);
+    transform-origin: 0 50%;
+}
+
+.biblio-flecha {
+    position: absolute;
+    top: calc(18px + var(--biblio-libro-alto) / 2);
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin-top: -22px;
+    border: 1px solid rgba(255, 255, 255, .16);
+    border-radius: 50%;
+    background: rgba(12, 12, 16, .78);
+    color: #fff;
+    font-size: 15px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .25s, background-color .25s;
+    backdrop-filter: blur(6px);
+}
+.biblio-flecha-izq { left: 10px; }
+.biblio-flecha-der { right: 10px; }
+.biblio-flecha:hover { background: rgba(var(--acento-rgb), .55); }
+.biblio-panel.is-activo .biblio-estante:hover .biblio-flecha { opacity: 1; }
+.biblio-flecha[disabled] { opacity: 0 !important; pointer-events: none; }
+@media (hover: none) { .biblio-flecha { display: none; } }
+
+/* ── LIBRO (portada de la noticia) ────────────────────────────────── */
+.biblio-libro {
+    --acento: #8a8a99;
+    --acento-rgb: 138, 138, 153;
+    position: relative;
+    display: block;
+    width: var(--biblio-libro-ancho);
+    height: var(--biblio-libro-alto);
+    overflow: hidden;
+    border-radius: 4px 10px 10px 4px;
+    background: linear-gradient(150deg, rgba(var(--acento-rgb), .5), #16161c 72%);
+    box-shadow: 0 16px 24px -12px rgba(0, 0, 0, .9);
+    color: #fff;
+    text-decoration: none;
+    outline: none;
+    transition: transform .35s var(--biblio-ease), box-shadow .35s var(--biblio-ease);
+    -webkit-user-drag: none;
+}
+/* Insinuación del lomo (en la etapa 2 será un lomo 3D real) */
+.biblio-libro::before {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+    z-index: 3;
+    width: 11px;
+    background: linear-gradient(90deg, rgba(0, 0, 0, .5), rgba(255, 255, 255, .1) 60%, transparent);
+    pointer-events: none;
+}
+.biblio-portada { position: absolute; inset: 0; }
+.biblio-portada-icono {
+    position: absolute;
+    top: 38%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 46px;
+    color: rgba(var(--acento-rgb), .35);
+}
+.biblio-portada img {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity .5s ease;
+    -webkit-user-drag: none;
+}
+.biblio-portada img.is-cargada { opacity: 1; }
+
+.biblio-cat {
+    position: absolute;
+    top: 10px;
+    left: 17px;
+    z-index: 2;
+    max-width: calc(100% - 27px);
+    overflow: hidden;
+    padding: 4px 8px;
+    border-radius: 20px;
+    background: rgba(0, 0, 0, .62);
+    color: var(--acento);
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.biblio-nuevo {
+    position: absolute;
+    top: 34px;
+    left: 17px;
+    z-index: 2;
+    padding: 3px 7px;
+    border-radius: 3px;
+    background: #ff4d4d;
+    color: #fff;
+    font-size: 8.5px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.biblio-info {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    z-index: 2;
+    padding: 46px 12px 12px 19px;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .7) 38%, rgba(0, 0, 0, .92));
+}
+.biblio-titulo {
+    display: -webkit-box;
+    overflow: hidden;
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+}
+.biblio-fecha {
+    display: block;
+    margin-top: 7px;
+    font-size: 10px;
+    letter-spacing: .4px;
+    color: #b8b8c6;
+}
+.biblio-fecha i { margin-right: 3px; color: var(--acento); }
+
+@media (hover: hover) {
+    .biblio-panel.is-activo .biblio-libro:hover {
+        transform: translateY(-9px);
+        box-shadow: 0 28px 34px -16px rgba(0, 0, 0, .95), 0 0 0 2px rgba(var(--acento-rgb), .85), 0 0 28px rgba(var(--acento-rgb), .32);
+    }
+}
+.biblio-libro:focus-visible {
+    transform: translateY(-9px);
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--acento), 0 26px 32px -16px rgba(0, 0, 0, .95);
+}
+
+/* ── PUNTOS DE POSICIÓN ───────────────────────────────────────────── */
+.biblio-puntos {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    gap: 7px;
+}
+.biblio-puntos span {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .2);
+    transition: width .35s var(--biblio-ease), background-color .35s;
+}
+.biblio-puntos span.is-activo { width: 24px; background: var(--biblio-acento); }
+
+/* Texto solo para lectores de pantalla */
+.biblio-sr {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ── MODO CLARO Y ALTO CONTRASTE (botones ☀️ y ◑ del sitio) ─────────── */
+body.modo-claro .biblio { color: #1b1b22; }
+body.modo-claro .biblio-panel {
+    background: linear-gradient(160deg, #ffffff 0%, #f1f1f5 100%);
+    border-color: #e0e0e8;
+    box-shadow: 0 30px 60px -28px rgba(0, 0, 0, .3);
+}
+body.modo-claro .biblio-panel::after { background: radial-gradient(90% 80% at 0% 0%, rgba(var(--acento-rgb), .14), transparent 60%); }
+body.modo-claro .biblio-panel-marca { color: rgba(0, 0, 0, .035); }
+body.modo-claro .biblio-panel-titulo { color: #111; }
+body.modo-claro .biblio-panel-sub { color: #6b6b78; }
+body.modo-claro .biblio-ver-todo { color: #111; }
+body.modo-claro .biblio-pestanas { background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .08); }
+body.modo-claro .biblio-pestana { color: #55556a; }
+body.modo-claro .biblio-pestana:hover { color: #111; background: rgba(0, 0, 0, .05); }
+body.modo-claro .biblio-pestana[aria-selected="true"] { color: #111; }
+body.modo-claro .biblio-ayuda { color: #777; }
+body.modo-claro .biblio-ayuda kbd { border-color: #c8c8d2; color: #444; }
+body.modo-claro .biblio-repisa { background: linear-gradient(180deg, rgba(0, 0, 0, .1), rgba(0, 0, 0, .03) 45%, rgba(0, 0, 0, .18)); box-shadow: 0 10px 16px -8px rgba(0, 0, 0, .35); }
+body.modo-claro .biblio-progreso { background: rgba(0, 0, 0, .08); }
+body.modo-claro .biblio-puntos span { background: rgba(0, 0, 0, .18); }
+body.modo-claro .biblio-puntos span.is-activo { background: var(--biblio-acento); }
+
+body.alto-contraste .biblio-panel,
+body.alto-contraste .biblio-pestanas { border: 2px solid #fff !important; }
+body.alto-contraste .biblio-libro { outline: 2px solid #fff; outline-offset: -2px; }
+body.alto-contraste .biblio-info { background: #000; }
+
+/* ── TAMAÑOS ──────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+    .biblio { --biblio-panel-ancho: calc(100% - 110px); --biblio-hueco: 24px; }
+}
+@media (max-width: 700px) {
+    .biblio {
+        --biblio-panel-ancho: calc(100% - 40px);
+        --biblio-hueco: 12px;
+        --biblio-libro-ancho: 136px;
+        --biblio-libro-alto: 196px;
+        --biblio-margen: 16px;
+        margin-bottom: 24px;
+    }
+    .biblio-carga { gap: 14px; padding-top: 70px; }
+    .biblio-pestanas { justify-content: flex-start; }
+    .biblio-pestana { padding: 8px 12px; font-size: 10px; letter-spacing: 1px; }
+    .biblio-escenario { padding: 14px 0 16px; }
+    .biblio-panel { padding-top: 16px; border-radius: 16px; }
+    .biblio-panel-cab { gap: 10px; }
+    .biblio-panel-icono { width: 38px; height: 38px; font-size: 16px; border-radius: 11px; }
+    .biblio-panel-titulo { font-size: 22px; }
+    .biblio-panel-sub { font-size: 9.5px; letter-spacing: 1.2px; }
+    .biblio-ver-todo { padding: 8px 11px; font-size: 0; gap: 0; }
+    .biblio-ver-todo i { font-size: 13px; }
+    .biblio-panel-marca { font-size: 96px; bottom: -22px; }
+    .biblio-estante-vista { padding-top: 14px; }
+    .biblio-estante-fila { gap: 14px; }
+    .biblio-titulo { font-size: 13px; }
+    .biblio-info { padding: 40px 10px 10px 16px; }
+    .biblio-cat { left: 15px; font-size: 8px; }
+    .biblio-nuevo { left: 15px; top: 31px; }
+}
+
+/* ── MOVIMIENTO REDUCIDO (el JS además quita el giro 3D y la inercia) ── */
+@media (prefers-reduced-motion: reduce) {
+    .biblio, .biblio *, .biblio *::before, .biblio *::after {
+        transition-duration: .01ms !important;
+        animation: none !important;
+    }
+    .biblio-libro:hover, .biblio-libro:focus-visible { transform: none !important; }
+}
