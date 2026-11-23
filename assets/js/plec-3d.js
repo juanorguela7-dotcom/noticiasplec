@@ -42,19 +42,26 @@
     function initScroll() {
         var nav = $('nav.plec-nav');
         var hero = $('header.plec-hero');
-        var ticking = false;
+        var barra = $('.plec-progress');
+        var ticking = false, kPrevio = -1;
 
+        // Primero se lee todo y después se escribe: leer medidas después de cambiar
+        // estilos obliga al navegador a recalcularlos en el acto (60 fps al bajar).
         function update() {
             ticking = false;
             var y = window.scrollY || window.pageYOffset;
             var max = Math.max(1, root.scrollHeight - window.innerHeight);
-            root.style.setProperty('--plec-p', (y / max).toFixed(4));
+            var pegada = !!nav && nav.getBoundingClientRect().top <= 0 && y > 10;
+            var k = hero && !reduce ? clamp(y / (hero.offsetHeight || 1), 0, 1) : -1;
 
-            if (nav) nav.classList.toggle('is-stuck', nav.getBoundingClientRect().top <= 0 && y > 10);
+            // La variable va en la barra y no en <html>: en <html> la heredan todos los
+            // elementos de la página y había que recalcular sus estilos en cada cuadro
+            if (barra) barra.style.setProperty('--plec-p', (y / max).toFixed(4));
+            if (nav) nav.classList.toggle('is-stuck', pegada);
 
-            if (hero && !reduce) {
-                var h = hero.offsetHeight || 1;
-                var k = clamp(y / h, 0, 1);
+            // La cabecera solo se toca mientras cambia (ya fuera de la pantalla, no)
+            if (k >= 0 && Math.abs(k - kPrevio) > 0.0005) {
+                kPrevio = k;
                 hero.style.setProperty('--plec-hero-y', (k * 60).toFixed(1) + 'px');
                 hero.style.setProperty('--plec-hero-y2', (k * 30).toFixed(1) + 'px');
                 hero.style.setProperty('--plec-hero-o', (1 - k * 0.9).toFixed(3));
@@ -204,7 +211,7 @@
     /* ── 5. BOTONES MAGNÉTICOS + LUZ QUE SIGUE AL MOUSE ─────────────── */
     function initMagnetico() {
         if (reduce || !finePointer) return;
-        var sel = '.social-icons a, .btn-tema, .btn-accesibilidad, .btn-arriba, .bienvenida-btn, .btn-revista-flotante, .btn-transmision-live, .menu-toggle';
+        var sel = '.social-icons a, .btn-tema, .btn-accesibilidad, .btn-arriba, .btn-revista-flotante, .btn-transmision-live, .menu-toggle';
         $$(sel).forEach(function (el) {
             el.setAttribute('data-magnetic', '');
             el.addEventListener('pointermove', function (e) {
@@ -233,8 +240,8 @@
         }, { passive: true });
     }
 
-    /* ── 6. INCLINACIÓN SUAVE DE ELEMENTOS SUELTOS (logo, bienvenida,
-             imagen de la noticia) ────────────────────────────────────── */
+    /* ── 6. INCLINACIÓN SUAVE DE ELEMENTOS SUELTOS (logo, imagen de la
+             noticia) ─────────────────────────────────────────────────── */
     function tiltSuave(zona, objetivo, max, prefijo) {
         if (reduce || !finePointer || !zona || !objetivo) return;
         prefijo = prefijo || '--plec-';
@@ -266,7 +273,6 @@
                 logo.style.setProperty('--plec-ly', '0deg');
             });
         }
-        tiltSuave($('#modalBienvenida'), $('.bienvenida-box'), 10);
         tiltSuave($('.plec-articulo-img-wrap'), $('.plec-articulo-img-wrap .imagen-noticia'), 8);
     }
 

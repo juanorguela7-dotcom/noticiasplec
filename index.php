@@ -32,48 +32,33 @@ try {
     // La tabla `configuracion` aún no existe: no hay transmisión
 }
 
-// ── LO MÁS LEÍDO: visitas reales de la columna `vistas` (antes era solo
-//    lo que había abierto el propio visitante en su navegador) ──
-$mas_leidas = [];
-if ($categoria_id === 0 && $busqueda === '') {
-    try {
-        // 1º: lo más visto en los últimos 7 días (tabla visitas_log)
-        try {
-            $res_ml = mysqli_query($conn, "SELECT n.id, n.titulo, SUM(v.cantidad) AS vistas
-                FROM visitas_log v JOIN noticias n ON n.id = v.noticia_id
-                WHERE v.fecha >= (CURDATE() - INTERVAL 7 DAY) AND n.es_especial = 0
-                GROUP BY n.id, n.titulo ORDER BY vistas DESC, n.id DESC LIMIT 5");
-            while ($res_ml && $r_ml = mysqli_fetch_assoc($res_ml)) $mas_leidas[] = $r_ml;
-        } catch (Throwable $e) {
-            $mas_leidas = []; // visitas_log aún no existe
-        }
-        // 2º: si no hay datos de la semana, lo más visto del último mes
-        if (count($mas_leidas) === 0) {
-            $res_ml = mysqli_query($conn, "SELECT id, titulo, vistas FROM noticias
-                WHERE es_especial = 0 AND vistas > 0 AND fecha_publicacion >= (NOW() - INTERVAL 30 DAY)
-                ORDER BY vistas DESC, id DESC LIMIT 5");
-            while ($res_ml && $r_ml = mysqli_fetch_assoc($res_ml)) $mas_leidas[] = $r_ml;
-        }
-        // 3º: lo más visto de siempre
-        if (count($mas_leidas) === 0) {
-            $res_ml = mysqli_query($conn, "SELECT id, titulo, vistas FROM noticias WHERE es_especial = 0 AND vistas > 0 ORDER BY vistas DESC, id DESC LIMIT 5");
-            while ($res_ml && $r_ml = mysqli_fetch_assoc($res_ml)) $mas_leidas[] = $r_ml;
-        }
-    } catch (Throwable $e) {
-        $mas_leidas = [];
-    }
-}
-
 $esta_filtrando = ($categoria_id > 0 || !empty($busqueda));
 
 // ── BIBLIOTECA INTERACTIVA: solo en la portada (no en categorías ni búsquedas).
 // Si no hay datos o falla, $biblio_activa queda en false y todo sigue como antes.
+include_once __DIR__ . '/biblioteca_datos.php';
 $biblio_datos = ['paneles' => [], 'noticias' => []];
 if (!$esta_filtrando && isset($conn) && $conn) {
-    include_once __DIR__ . '/biblioteca_datos.php';
     $biblio_datos = plec_biblioteca_datos($conn, 12);
 }
 $biblio_activa = !empty($biblio_datos['paneles']);
+
+// ── BÚHO INTELIGENTE (Etapa 5): índice para "Pregúntale al búho". La búsqueda
+// se hace en el navegador; aquí solo se agregan, en versión ligera, las noticias
+// que no caben en los estantes. Si falla, el búho busca solo en los estantes.
+include_once __DIR__ . '/buho_datos.php';
+$buho_indice = null;
+if ($biblio_activa) {
+    $buho_secciones = [];
+    foreach (plec_biblioteca_secciones() as $s) {
+        if ($s['cats'] !== null) $buho_secciones[] = ['clave' => $s['clave'], 'nombre' => $s['nombre'], 'cats' => $s['cats']];
+    }
+    $buho_indice = [
+        'hoy'       => date('Y-m-d'),
+        'secciones' => $buho_secciones,
+        'extra'     => plec_buho_indice_extra($conn, array_keys($biblio_datos['noticias'])),
+    ];
+}
 
 // ── PAGINACIÓN ──
 $por_pagina = 50; // noticias por página en vista filtrada
@@ -335,7 +320,8 @@ if ($noticia_id > 0 && isset($conn)) {
             display: inline-flex;
             align-items: center;
             gap: 5px;
-            animation: pulso 1.8s ease-in-out infinite;
+            position: relative;
+            box-shadow: 0 2px 8px rgba(255,77,77,0.5);
             white-space: nowrap;
         }
         .nav-ultimahora i { font-size: 10px; }
@@ -539,9 +525,18 @@ if ($noticia_id > 0 && isset($conn)) {
         }
         .btn-ver-mas:hover { background: var(--azul); color: #fff; }
         /* BADGE NUEVO */
-        .badge-nuevo { position: absolute; top: 10px; left: 10px; background: var(--rojo); color: #fff; font-size: 10px; font-weight: 900; padding: 3px 9px; border-radius: 20px; letter-spacing: 1px; text-transform: uppercase; z-index: 2; box-shadow: 0 2px 8px rgba(255,77,77,0.5); animation: pulso 1.8s ease-in-out infinite; }
+        .badge-nuevo { position: absolute; top: 10px; left: 10px; background: var(--rojo); color: #fff; font-size: 10px; font-weight: 900; padding: 3px 9px; border-radius: 20px; letter-spacing: 1px; text-transform: uppercase; z-index: 2; box-shadow: 0 2px 8px rgba(255,77,77,0.5); }
         .badge-nuevo-lg { font-size: 12px; padding: 5px 13px; top: 14px; left: 14px; }
-        @keyframes pulso { 0%,100% { box-shadow: 0 2px 8px rgba(255,77,77,0.5); } 50% { box-shadow: 0 2px 18px rgba(255,77,77,0.9); } }
+        /* Brillo que late (ÚLTIMA HORA y NUEVO): una capa con la sombra grande que solo
+           cambia de opacidad. Animar box-shadow obligaba a repintar en cada cuadro;
+           la opacidad la anima la tarjeta gráfica (60 fps sin trabajo del procesador). */
+        .nav-ultimahora::after, .badge-nuevo::after {
+            content: ''; position: absolute; inset: 0; border-radius: inherit;
+            box-shadow: 0 2px 18px rgba(255,77,77,0.9);
+            opacity: 0; pointer-events: none;
+            animation: pulso 1.8s ease-in-out infinite;
+        }
+        @keyframes pulso { 50% { opacity: 1; } }
         /* FECHA RELATIVA EN CARD */
         .fecha-noticia { font-size: 10px; color: #555; margin-top: 6px; display: block; }
         .fecha-noticia i { margin-right: 4px; color: #444; }
@@ -707,7 +702,7 @@ if ($noticia_id > 0 && isset($conn)) {
             .modal-content { margin: 15px; padding: 25px 20px; }
             .btn-revista-flotante { bottom: 12px; right: 12px; padding: 9px 14px; font-size: 11px; gap: 8px; }
             .btn-arriba { bottom: 85px; right: 15px; width: 40px; height: 40px; font-size: 16px; }
-            .footer-container { flex-direction: column; gap: 20px; }
+            .footer-container { grid-template-columns: 1fr; gap: 20px; }
             .footer-right { text-align: left; }
         }
 
@@ -767,10 +762,6 @@ if ($noticia_id > 0 && isset($conn)) {
             .btn-revista-flotante { padding: 7px 10px; font-size: 9px; bottom: 8px; right: 8px; }
             .btn-arriba { bottom: 70px; right: 10px; width: 38px; height: 38px; }
             .ticker-item { font-size: 10px; margin: 0 15px; }
-            .bienvenida-box { width: 95%; padding: 30px 20px; }
-            .bienvenida-logo { font-size: 32px; }
-            .bienvenida-titular { font-size: 18px; }
-            .bienvenida-texto { font-size: 12px; }
         }
 
         /* MÓVIL PEQUEÑO (361px - 420px) */
@@ -786,9 +777,6 @@ if ($noticia_id > 0 && isset($conn)) {
             .seccion-grid .img-box { height: 130px; }
             .seccion-titulo { font-size: 13px; }
             .btn-revista-flotante { padding: 6px 9px; font-size: 8px; }
-            .bienvenida-box { padding: 20px 15px; }
-            .bienvenida-logo { font-size: 28px; }
-            .bienvenida-titular { font-size: 16px; }
         }
 
         /* MÓVIL MUY PEQUEÑO (hasta 360px) */
@@ -807,10 +795,6 @@ if ($noticia_id > 0 && isset($conn)) {
             .btn-revista-flotante { padding: 5px 8px; font-size: 7px; bottom: 5px; right: 5px; }
             .btn-arriba { bottom: 60px; right: 5px; width: 36px; height: 36px; font-size: 14px; }
             .ticker-item { font-size: 9px; margin: 0 10px; }
-            .bienvenida-box { padding: 15px 10px; }
-            .bienvenida-logo { font-size: 24px; }
-            .bienvenida-titular { font-size: 14px; }
-            .bienvenida-texto { font-size: 11px; }
         }
         /* MODO CLARO */
         body.modo-claro { background: #f0f0f0; color: #111; }
@@ -848,23 +832,7 @@ if ($noticia_id > 0 && isset($conn)) {
         .btn-tema { background: none; border: 1px solid #444; color: #fff; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; font-size: 16px; display:flex; align-items:center; justify-content:center; transition:0.3s; flex-shrink:0; }
         body.modo-claro .btn-tema { border-color: #999; color: #111; }
         .btn-tema:hover { transform: rotate(20deg) scale(1.1); }
-        /* ── BIENVENIDA MODAL ────────────────────────────────────────────── */
-        #modalBienvenida { display:none; position:fixed; z-index:99999; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.88); backdrop-filter:blur(5px); align-items:center; justify-content:center; }
-        #modalBienvenida.show { display:flex; }
-        .bienvenida-box { background: linear-gradient(145deg, #1a1a2e, #16213e, #0f3460); border: 1px solid #2a2a5a; border-radius: 12px; max-width: 360px; width: 88%; padding: 28px 26px 22px; text-align: center; position: relative; box-shadow: 0 0 40px rgba(26,115,232,0.25), 0 0 80px rgba(116,0,135,0.1); animation: slideDown 0.4s ease; }
         @keyframes slideDown { from { opacity:0; transform:translateY(-28px); } to { opacity:1; transform:translateY(0); } }
-        .bienvenida-logo { font-family:'Playfair Display',serif; font-size:32px; font-weight:900; color:#fff; text-transform:uppercase; margin-bottom:2px; letter-spacing:1px; }
-        .bienvenida-logo span { color: var(--rojo); }
-        .bienvenida-slogan { font-size:9px; letter-spacing:3px; color:#556; font-weight:700; text-transform:uppercase; margin-bottom:16px; }
-        .bienvenida-linea { width:40px; height:2px; background: linear-gradient(90deg, var(--azul), var(--rojo)); margin: 0 auto 16px; border-radius:2px; }
-        .bienvenida-titular { font-family:'Playfair Display',serif; font-size:16px; color:#e8e8e8; margin-bottom:10px; line-height:1.4; font-weight:700; min-height:46px; }
-        .bienvenida-texto { color:#778; font-size:12px; line-height:1.65; margin-bottom:18px; }
-        .bienvenida-fecha { font-size:9px; color:#445; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; margin-bottom:18px; border-top:1px solid #1e2a40; padding-top:14px; }
-        .bienvenida-btn { display:inline-block; background: linear-gradient(135deg, var(--azul), #0d47a1); color:#fff; border:none; padding:10px 28px; border-radius:40px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px; cursor:pointer; transition:0.25s; box-shadow:0 3px 14px rgba(26,115,232,0.35); }
-        .bienvenida-btn:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(26,115,232,0.55); }
-        .bienvenida-puntos { display:flex; justify-content:center; gap:6px; margin-top:14px; }
-        .bienvenida-puntos span { width:5px; height:5px; border-radius:50%; background:#1e2a40; display:inline-block; transition:background 0.3s; }
-        .bienvenida-puntos span.activo { background: var(--azul); }
         /* TICKER DE NOTICIAS */
         .ticker-wrap { background: #0d0d0d; border-top: 2px solid var(--rojo); border-bottom: 2px solid var(--azul); padding: 8px 0; overflow: hidden; white-space: nowrap; position: relative; z-index: 998; }
         .ticker-label { background: var(--rojo); color: #fff; font-size: 10px; font-weight: 900; letter-spacing: 2px; padding: 4px 14px; text-transform: uppercase; display: inline-block; margin-right: 20px; vertical-align: middle; }
@@ -1374,28 +1342,6 @@ if ($noticia_id > 0 && isset($conn)) {
         .btn-cargar-mas-opinion { display:block; width:100%; padding:10px; background:transparent; border:1px solid #333; color:#aaa; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:1px; transition:0.2s; }
         .btn-cargar-mas-opinion:hover { border-color:#ff8c00; color:#ff8c00; }
 
-        /* ── LO MÁS LEÍDO ───────────────────────────────────────────────── */
-        .mas-leido-box { background: #111; border: 1px solid #1e1e1e; border-radius: 12px; padding: 22px 20px; }
-        .mas-leido-box h3 { font-family: 'Playfair Display', serif; font-size: 13px; color: #aaa; margin: 0 0 18px; text-transform: uppercase; letter-spacing: 3px; font-weight: 400; display: flex; align-items: center; gap: 8px; }
-        .mas-leido-box h3 i { font-size: 11px; color: var(--rojo); }
-        .mas-leido-item { display: flex; gap: 14px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid #1e1e1e; cursor: pointer; transition: 0.15s; }
-        .mas-leido-item:last-child { border-bottom: none; }
-        .mas-leido-item:hover .mas-leido-titulo { color: #fff; }
-        .mas-leido-num { font-size: 22px; font-weight: 900; color: #2e2e2e; font-family: 'Playfair Display', serif; line-height: 1.1; flex-shrink: 0; width: 28px; }
-        .mas-leido-num.top1 { color: var(--rojo); }
-        .mas-leido-num.top2 { color: #777; }
-        .mas-leido-num.top3 { color: #555; }
-        .mas-leido-titulo { font-size: 13px; color: #ccc; line-height: 1.5; }
-
-        /* ── EFEMÉRIDES ─────────────────────────────────────────────────── */
-        .efemerides-box { background: #111; border: 1px solid #1e1e1e; border-radius: 12px; padding: 22px 20px; }
-        .efemerides-box h3 { font-family: 'Playfair Display', serif; font-size: 13px; color: #aaa; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 3px; font-weight: 400; }
-        .efemerides-fecha { font-size: 10px; color: #666; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 18px; }
-        .efemerides-item { display: flex; gap: 16px; padding: 10px 0; border-bottom: 1px solid #1e1e1e; align-items: center; }
-        .efemerides-item:last-child { border-bottom: none; }
-        .efemerides-anio { font-size: 17px; font-weight: 900; color: var(--azul); font-family: 'Playfair Display', serif; flex-shrink: 0; width: 44px; }
-        .efemerides-texto { font-size: 13px; color: #ccc; line-height: 1.5; }
-
         /* ── CONTADOR REGRESIVO ──────────────────────────────────────────── */
 
         /* ── COMPARTIR MEJORADO ──────────────────────────────────────────── */
@@ -1496,42 +1442,38 @@ if ($noticia_id > 0 && isset($conn)) {
             }
         }
     </style>
-    <link rel="stylesheet" href="assets/css/plec-3d.css?v=1">
+    <link rel="stylesheet" href="assets/css/plec-3d.css?v=4">
+    <link rel="stylesheet" href="assets/css/plec-buho.css?v=3">
+<?php if (!$esta_filtrando): ?>
+    <link rel="stylesheet" href="assets/css/plec-mapa.css?v=1">
+<?php endif; ?>
 <?php if ($biblio_activa): ?>
-    <link rel="stylesheet" href="assets/css/plec-biblioteca.css?v=1">
+    <link rel="stylesheet" href="assets/css/plec-biblioteca.css?v=8">
 <?php endif; ?>
 </head>
 <body>
+<!-- Primer elemento con Tab: salta la barra superior, la cabecera y el menú (Etapa 6) -->
+<a class="plec-saltar" href="#contenido"><?php echo $biblio_activa ? 'Saltar a la biblioteca de noticias' : 'Saltar al contenido'; ?></a>
 
-<!-- MODAL BIENVENIDA -->
-<script>
-function cerrarBienvenida() {
-    var m = document.getElementById('modalBienvenida');
-    if (m) { m.classList.remove('show'); m.style.display = 'none'; }
-    document.body.style.overflow = '';
-    try { sessionStorage.setItem('plec-bienvenida-vista', '1'); } catch(e){}
-}
-</script>
-<div id="modalBienvenida">
-    <div class="bienvenida-box">
-        <div class="bienvenida-logo">Noticias <span>PLEC</span></div>
-        <div class="bienvenida-slogan">#SomosTodos | Noticiero Independiente</div>
-        <div class="bienvenida-linea"></div>
-        <div class="bienvenida-titular" id="bienvenidaTitular">La verdad no espera.<br>Bienvenido al periodismo libre.</div>
-        <p class="bienvenida-texto">Desde el corazón del Tolima, te traemos las noticias que importan. Sin filtros, sin censura, con la pasión de quienes creen en la información como herramienta de cambio.</p>
-        <div class="bienvenida-fecha">
-            📅 <?php
-                $dias = array("Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado");
-                $meses = array("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre");
-                echo $dias[date('w')].", ".date('d')." de ".$meses[date('n')-1]." de ".date('Y');
-            ?> — Edición Digital
-        </div>
-        <button class="bienvenida-btn" onclick="cerrarBienvenida()">📰 Leer las noticias</button>
-        <div class="bienvenida-puntos">
-            <span class="activo"></span><span></span><span></span>
-        </div>
-    </div>
-</div>
+<!-- BIENVENIDA: la dice el búho guía (assets/js/plec-buho.js), línea por línea.
+     "\n" es un salto de línea dentro del globo. -->
+<?php
+$dias = array("Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado");
+$meses = array("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre");
+$buho_bienvenida = [
+    'marca'  => 'Noticias PLEC',
+    'lema'   => '#SomosTodos | Noticiero Independiente',
+    'lineas' => [
+        "La verdad no espera.\nBienvenido al periodismo libre.",
+        'Desde el corazón del Tolima, te traemos las noticias que importan. Sin filtros, sin censura, con la pasión de quienes creen en la información como herramienta de cambio.',
+        "Cada noticia, una historia.\nCada historia, una voz del Tolima.",
+        "Informar es un acto de valentía.\nLeer, uno de libertad.",
+    ],
+    'fecha'  => '📅 ' . $dias[date('w')] . ', ' . date('d') . ' de ' . $meses[date('n') - 1] . ' de ' . date('Y') . ' — Edición Digital',
+    'final'  => '📰 Leer las noticias',
+];
+?>
+<script type="application/json" id="buhoBienvenida"><?php echo json_encode($buho_bienvenida, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP); ?></script>
 
 <button class="menu-toggle" onclick="abrirNav()" aria-label="Abrir menú"><i class="fas fa-bars"></i></button>
 
@@ -1755,7 +1697,7 @@ function cerrarBienvenida() {
     </div>
 </div>
 
-<main>
+<main id="contenido" tabindex="-1" data-destino-salto>
     <?php
     function obtenerRutaImagen($img_db) {
         if (empty($img_db)) return "img/placeholder.svg";
@@ -1954,6 +1896,9 @@ function cerrarBienvenida() {
             //    se oculta solo cuando la biblioteca arrancó bien.
             if ($biblio_activa) plec_biblioteca_render($biblio_datos);
             echo '<div class="plec-portada-clasica" id="portadaClasica">';
+            // Con la biblioteca, esta portada queda oculta: sus fotos van con carga diferida
+            // para que no se descarguen mientras no se ven (solo si la biblioteca falla)
+            $img_clasica = $biblio_activa ? ' loading="lazy" decoding="async"' : '';
 
             // 1. BLOQUE PRINCIPAL SUPERIOR BLINDADO
             $sql_top = "SELECT n.*, c.nombre as cat_nombre, TIMESTAMPDIFF(HOUR, n.fecha_publicacion, NOW()) as horas_publicada FROM noticias n LEFT JOIN categorias c ON n.categoria_id = c.id WHERE n.categoria_id NOT IN (13, 15) AND n.es_especial = 0 ORDER BY n.fecha_publicacion DESC LIMIT 5";
@@ -1974,7 +1919,7 @@ function cerrarBienvenida() {
                             $txt_res = plec_resumen($noticias_top[$i]['contenido'], 110);
                         ?>
                             <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
-                                <div class='img-box'><img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?>"></div>
+                                <div class='img-box'><img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?>"<?php echo $img_clasica; ?>></div>
                                 <div class='info-card'>
                                     <span class='cat-tag'><?php echo htmlspecialchars($noticias_top[$i]['cat_nombre']); ?></span>
                                     <h3><?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?></h3>
@@ -1993,7 +1938,7 @@ function cerrarBienvenida() {
                         ?>
                         <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[0]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img_c), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[0]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                             <div class='img-box' style="position:relative;">
-                                <img src='<?php echo htmlspecialchars($img_c); ?>' alt="<?php echo htmlspecialchars($noticias_top[0]['titulo']); ?>" fetchpriority="high">
+                                <img src='<?php echo htmlspecialchars($img_c); ?>' alt="<?php echo htmlspecialchars($noticias_top[0]['titulo']); ?>"<?php echo $img_clasica ?: ' fetchpriority="high"'; ?>>
                                 <?php if($es_nuevo_c): ?><span class='badge-nuevo badge-nuevo-lg'><i class="fas fa-bolt"></i> NUEVO</span><?php endif; ?>
                             </div>
                             <div class='info-card'>
@@ -2013,7 +1958,7 @@ function cerrarBienvenida() {
                         ?>
                             <div class='card' onclick="abrirModal(<?php echo htmlspecialchars(json_encode($noticias_top[$i]['titulo']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($img), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['contenido']), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['video_url'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars(json_encode($noticias_top[$i]['id']), ENT_QUOTES, 'UTF-8'); ?>)">
                                 <div class='img-box' style="position:relative;">
-                                    <img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?>">
+                                    <img src='<?php echo htmlspecialchars($img); ?>' alt="<?php echo htmlspecialchars($noticias_top[$i]['titulo']); ?>"<?php echo $img_clasica; ?>>
                                     <?php if($es_nuevo_l): ?><span class='badge-nuevo'><i class="fas fa-bolt"></i> NUEVO</span><?php endif; ?>
                                 </div>
                                 <div class='info-card'>
@@ -2219,61 +2164,68 @@ function cerrarBienvenida() {
     ?>
 </main>
 
-<!-- LO MÁS LEÍDO + EFEMÉRIDES + CONTADOR -->
 <?php if (!$esta_filtrando): ?>
-<div style="max-width:1350px; margin:0 auto 40px; padding:0 20px; box-sizing:border-box; display:grid; grid-template-columns:1fr 1.2fr; gap:20px;">
-
-    <!-- LO MÁS LEÍDO -->
-    <div class="mas-leido-box">
-        <h3><i class="fas fa-fire" style="color:var(--rojo);margin-right:8px;font-size:16px;"></i>Lo más leído</h3>
-        <div id="masLeidoLista">
-            <?php if (empty($mas_leidas)): ?>
-                <div style="color:#555;font-size:13px;padding:20px 0;text-align:center;">Aún no hay lecturas registradas.</div>
-            <?php else: foreach ($mas_leidas as $i_ml => $ml):
-                $cls_ml = ['top1', 'top2', 'top3'][$i_ml] ?? '';
-                $v_ml = intval($ml['vistas']); ?>
-                <a class="mas-leido-item" href="index.php?id=<?php echo intval($ml['id']); ?>">
-                    <div class="mas-leido-num <?php echo $cls_ml; ?>"><?php echo $i_ml + 1; ?></div>
-                    <div class="mas-leido-titulo"><?php echo htmlspecialchars(mb_strimwidth($ml['titulo'], 0, 90, '…')); ?>
-                        <span class="mas-leido-vistas"><?php echo number_format($v_ml, 0, ',', '.'); ?> lectura<?php echo $v_ml !== 1 ? 's' : ''; ?></span>
-                    </div>
-                </a>
-            <?php endforeach; endif; ?>
+<!-- MAPA VIVO DE COLOMBIA: lo arma assets/js/plec-mapa.js con assets/mapa/colombia.svg y get_mapa.php -->
+<section class="mapa-vivo" id="mapaVivo" aria-labelledby="mvTitulo" data-v="1"
+         data-svg="assets/mapa/colombia.svg?v=1" data-api="get_mapa.php" data-geo="assets/mapa/municipios/">
+    <div class="mv-cabeza" data-reveal-auto>
+        <div>
+            <span class="mv-kicker"><span class="mv-vivo" aria-hidden="true"></span> Mapa vivo</span>
+            <h2 class="mv-titulo" id="mvTitulo">Colombia, <em>noticia por noticia</em></h2>
+            <p class="mv-sub">Toca un departamento para ver lo que pasa allí. El Tolima es nuestra casa.</p>
         </div>
+        <ul class="mv-resumen" id="mvResumen" aria-label="Resumen del mapa"></ul>
     </div>
-
-    <!-- EFEMÉRIDES DEL TOLIMA -->
-    <div class="efemerides-box">
-        <h3>📅 Efemérides del Tolima</h3>
-        <div class="efemerides-fecha"><?php
-            $dias_ef = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
-            $meses_ef = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
-            echo $dias_ef[date('w')] . ", " . date('j') . " de " . $meses_ef[date('n')-1];
-        ?></div>
-        <?php
-        // Efemérides históricas del Tolima (estáticas - puedes expandir o cargar desde DB)
-        $efemerides = [
-            ["1887","Ibagué es declarada capital definitiva del departamento del Tolima."],
-            ["1943","Nace el escritor tolimense Héctor Sánchez, figura de las letras colombianas."],
-            ["1967","Se funda la Universidad del Tolima, institución educativa emblemática de la región."],
-            ["2002","El río Magdalena registra una de sus mayores crecientes afectando municipios del norte del Tolima."],
-            ["1958","El Tolima FC disputa su primer partido oficial en el fútbol profesional colombiano."],
-        ];
-        // Seleccionar 3 basadas en el día del mes para que varíen
-        $idx = date('j') % count($efemerides);
-        for($e = 0; $e < 3; $e++) {
-            $ef = $efemerides[($idx + $e) % count($efemerides)];
-            echo "<div class='efemerides-item'>";
-            echo "<div class='efemerides-anio'>" . $ef[0] . "</div>";
-            echo "<div class='efemerides-texto'>" . htmlspecialchars($ef[1]) . "</div>";
-            echo "</div>";
-        }
-        ?>
+    <a class="mv-saltar" id="mvSaltar" href="#mvPanelTitulo">Saltar el mapa e ir a las noticias del lugar</a>
+    <div class="mv-cuerpo" id="mvCuerpo" data-reveal-auto>
+        <div class="mv-mapa" id="mvMapa">
+            <div class="mv-lienzo" id="mvLienzo"><div class="mv-carga">Cargando el mapa…</div></div>
+            <div class="mv-capa" id="mvCapa" aria-hidden="true"></div>
+            <div class="mv-barra">
+                <button type="button" class="mv-volver" id="mvVolver" hidden><i class="fas fa-arrow-left" aria-hidden="true"></i> Colombia</button>
+                <div class="mv-migas" role="navigation" aria-label="Ubicación en el mapa"><ol id="mvMigas"><li><span aria-current="location">Colombia</span></li></ol></div>
+            </div>
+            <div class="mv-tip" id="mvTip" hidden></div>
+            <div class="mv-leyenda" aria-hidden="true">
+                <span class="mv-ley-tit">Noticias en 30 días</span>
+                <span class="mv-ley-barra"></span>
+                <span class="mv-ley-ext"><span>1</span><span id="mvLeyMax">—</span></span>
+                <span class="mv-ley-fila"><span><i class="mv-ley-vacio"></i> Sin noticias</span><span><i class="mv-ley-punto"></i> Últimas 24 h</span></span>
+            </div>
+            <p class="mv-fuente">Límites: DANE · MGN</p>
+            <p class="mv-sr" id="mvAyuda">Cada lugar del mapa es un botón: usa Tab para recorrerlos y Enter para ver sus municipios y noticias. Escape vuelve al mapa de Colombia.</p>
+        </div>
+        <aside class="mv-panel" aria-labelledby="mvPanelTitulo">
+            <div class="mv-rapidos" id="mvRapidos" role="group" aria-label="Ir directo a">
+                <button type="button" data-ir="pais" aria-pressed="true">Todo Colombia</button>
+                <button type="button" data-ir="73" aria-pressed="false">Tolima</button>
+                <button type="button" data-ir="11" aria-pressed="false">Bogotá</button>
+            </div>
+            <div class="mv-panel-cab">
+                <h3 class="mv-panel-titulo" id="mvPanelTitulo" tabindex="-1">Lo último del país</h3>
+                <span class="mv-badge-casa" id="mvBadgeCasa" hidden><i class="fas fa-house" aria-hidden="true"></i> Nuestra casa</span>
+            </div>
+            <p class="mv-panel-meta" id="mvPanelMeta"></p>
+            <ol class="mv-lista" id="mvLista" aria-labelledby="mvPanelTitulo"></ol>
+        </aside>
     </div>
-</div>
+    <div class="mv-aviso" id="mvAviso" role="status" hidden>
+        <strong>El mapa de noticias no está disponible en este momento</strong>
+        <span>Las noticias siguen aquí arriba. Vuelve a intentarlo en unos minutos.</span>
+        <button type="button" id="mvReintentar">Intentar de nuevo</button>
+    </div>
+    <div class="mv-pulso" id="mvPulsoCaja" data-reveal-auto>
+        <div class="mv-pulso-cab">
+            <h3 class="mv-pulso-titulo" id="mvPulsoTitulo"><span class="mv-vivo" aria-hidden="true"></span> Pulso del día</h3>
+            <span class="mv-pulso-nota">Las últimas noticias con lugar. Pasa el cursor para verlas en el mapa.</span>
+        </div>
+        <ol class="mv-pulso-lista" id="mvPulso" aria-labelledby="mvPulsoTitulo"></ol>
+    </div>
+    <div class="mv-sr" id="mvVivo" aria-live="polite"></div>
+</section>
 <?php endif; ?>
 
-<div id="miModal" class="modal" role="dialog" aria-modal="true" aria-label="Noticia"><div class="modal-content"><button type="button" class="plec-modal-cerrar" onclick="cerrarModal()" aria-label="Cerrar noticia">&times;</button><div id="modalBody"></div></div></div>
+<div id="miModal" class="modal" role="dialog" aria-modal="true" aria-label="Noticia" aria-labelledby="modalTitulo"><div class="modal-content"><button type="button" class="plec-modal-cerrar" onclick="cerrarModal()" aria-label="Cerrar noticia">&times;</button><div id="modalBody"></div></div></div>
 
 <!-- BOTÓN VOLVER ARRIBA -->
 <button class="btn-arriba" id="btnArriba" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Volver arriba" aria-label="Volver arriba">▲</button>
@@ -2342,6 +2294,10 @@ function plecStorage(tipo, accion, clave, valor) {
     } catch (e) { return null; }
 }
 function bloquearScroll(si) { document.body.style.overflow = si ? 'hidden' : ''; }
+function plecEnfocar(el) {
+    if (!el) return;
+    try { el.focus({ preventScroll: true }); } catch (e) { try { el.focus(); } catch (e2) { /* nada */ } }
+}
 
 // ── TRANSMISIÓN EN VIVO (estado guardado en la BD desde el panel admin) ──────
 function verificarTransmisionLive() {
@@ -2436,6 +2392,8 @@ function plecVideoEmbed(url) {
 // la leen de esta variable en vez de recibir el texto dentro del onclick, que
 // se rompía con comillas o saltos de línea en el contenido.
 let plecNoticiaActual = null;
+// Lo que tenía el foco antes de abrir la noticia: al cerrarla vuelve ahí (teclado y lectores de pantalla)
+let plecModalFocoPrevio = null;
 
 function abrirModal(t, i, c, v, id) {
     t = t || ''; i = i || ''; c = c || ''; v = v || ''; id = id ? String(id) : '';
@@ -2447,7 +2405,7 @@ function abrirModal(t, i, c, v, id) {
     const tgUrl = encodeURIComponent(url) + '&text=' + encodeURIComponent('📰 ' + t + ' — Noticias PLEC');
 
     document.getElementById('modalBody').innerHTML = `
-        <h1 style="color:#fff; font-family:'Playfair Display'; padding-right:52px;">${plecEsc(t)}</h1>
+        <h1 id="modalTitulo" style="color:#fff; font-family:'Playfair Display'; padding-right:52px;">${plecEsc(t)}</h1>
         ${i ? `<img class="plec-modal-img" src="${plecEsc(i)}" alt="${plecEsc(t)}" style="width:100%; margin:20px 0; display:block;" onerror="this.onerror=null;this.src='img/placeholder.svg'">` : ''}
         <div style="color:#ccc; line-height:1.7; font-size:18px; white-space:pre-line;" id="modalContenidoTexto">${c}</div>
         ${plecVideoEmbed(v)}
@@ -2461,9 +2419,11 @@ function abrirModal(t, i, c, v, id) {
         </div>`;
 
     const modal = document.getElementById('miModal');
+    if (modal.style.display !== 'block') plecModalFocoPrevio = document.activeElement;
     modal.style.display = 'block';
     modal.scrollTop = 0;
     bloquearScroll(true);
+    plecEnfocar(modal.querySelector('.plec-modal-cerrar'));
     registrarVistaReal(id);
 }
 
@@ -2473,6 +2433,9 @@ function cerrarModal() {
     document.getElementById('modalBody').innerHTML = ''; // detiene videos que siguieran sonando
     detenerVoz();
     bloquearScroll(false);
+    const previo = plecModalFocoPrevio;
+    plecModalFocoPrevio = null;
+    if (previo && previo !== document.body && document.contains(previo) && previo.getClientRects().length) plecEnfocar(previo);
     // Si se entró por un enlace compartido (?id=), limpiar la URL para que al recargar no se reabra
     if (/[?&]id=/.test(location.search) && history.replaceState) {
         history.replaceState(null, '', location.pathname);
@@ -2480,7 +2443,7 @@ function cerrarModal() {
 }
 document.getElementById('miModal').addEventListener('click', function (e) { if (e.target === this) cerrarModal(); });
 
-// ── CONTADOR DE VISITAS REAL (columna `vistas`, alimenta "Lo más leído") ─────
+// ── CONTADOR DE VISITAS REAL (columna `vistas`, la muestra el panel admin) ───
 function registrarVistaReal(id) {
     if (!id) return;
     fetch('contar_vista.php', {
@@ -2504,35 +2467,20 @@ if (plecStorage('localStorage', 'get', 'tema-plec') === 'claro') {
     });
 }
 
-// ── BIENVENIDA (una vez por sesión, no en cada clic de categoría) ───────────
-const titulares = [
-    "La verdad no espera.<br>Bienvenido al periodismo libre.",
-    "Cada noticia, una historia.<br>Cada historia, una voz del Tolima.",
-    "Informar es un acto de valentía.<br>Leer, uno de libertad."
-];
-let tIdx = 0;
+// ── BIENVENIDA: la dice el búho guía (una vez por sesión, no en cada clic de
+//    categoría, y no al entrar por el enlace de una noticia) ─────────────────
 document.addEventListener('DOMContentLoaded', function () {
     const yaVista = plecStorage('sessionStorage', 'get', 'plec-bienvenida-vista') === '1';
     const vieneDeEnlace = <?php echo ($noticia_id > 0 && $noticia_seo) ? 'true' : 'false'; ?>;
 
-    if (!yaVista && !vieneDeEnlace) {
-        const puntos = document.querySelectorAll('.bienvenida-puntos span');
-        const titular = document.getElementById('bienvenidaTitular');
-        const rotar = setInterval(function () {
-            const m = document.getElementById('modalBienvenida');
-            if (!m || !m.classList.contains('show')) { clearInterval(rotar); return; }
-            titular.classList.add('is-cambiando');
-            setTimeout(function () {
-                tIdx = (tIdx + 1) % titulares.length;
-                titular.innerHTML = titulares[tIdx];
-                puntos.forEach((p, i) => p.classList.toggle('activo', i === tIdx));
-                titular.classList.remove('is-cambiando');
-            }, 350);
-        }, 3200);
+    // Al terminar la bienvenida (o si ya se vio), el búho se queda en su rincón (Etapa 5)
+    if (window.PlecBuho) {
         setTimeout(function () {
-            const m = document.getElementById('modalBienvenida');
-            if (m) { m.style.display = 'flex'; m.classList.add('show'); }
-            bloquearScroll(true);
+            const dijo = !yaVista && !vieneDeEnlace && PlecBuho.bienvenida({
+                anclar: true,
+                alCerrar: function () { plecStorage('sessionStorage', 'set', 'plec-bienvenida-vista', '1'); }
+            });
+            if (!dijo) PlecBuho.anclar();
         }, 300);
     }
 
@@ -2842,18 +2790,44 @@ function descargarIG() {
 }
 document.getElementById('modalIG').addEventListener('click', function (e) { if (e.target === this) cerrarIG(); });
 
+// ── VENTANAS: la de más arriba primero (QR e historia se abren sobre la noticia) ──
+const PLEC_VENTANAS = ['modalIG', 'modalQR', 'miModal', 'modalTransmisionLive', 'modalGuardados', 'modalOpinion'];
+function plecVentanaAbierta(id) {
+    const el = document.getElementById(id);
+    return !!el && (el.classList.contains('show') || el.style.display === 'block' || el.style.display === 'flex');
+}
+
+// ── TECLA TAB: el foco no se sale de la ventana que esté encima (Etapa 6) ────
+// Sin esto, con Tab se seguía recorriendo la página de detrás, que no se ve.
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab' || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+    const id = PLEC_VENTANAS.find(plecVentanaAbierta);
+    if (!id) return;
+    const caja = document.getElementById(id);
+    const enfocables = Array.prototype.filter.call(
+        caja.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'),
+        el => el.getClientRects().length && getComputedStyle(el).visibility !== 'hidden'
+    );
+    if (!enfocables.length) { e.preventDefault(); return; }
+    const primero = enfocables[0], ultimo = enfocables[enfocables.length - 1];
+    const activo = document.activeElement, dentro = caja.contains(activo);
+    if (e.shiftKey ? (activo === primero || !dentro) : (activo === ultimo || !dentro)) {
+        e.preventDefault();
+        plecEnfocar(e.shiftKey ? ultimo : primero);
+    }
+});
+
 // ── TECLA ESCAPE: cierra la ventana que esté encima ──────────────────────────
 document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    const abierto = id => { const el = document.getElementById(id); return el && (el.classList.contains('show') || el.style.display === 'block' || el.style.display === 'flex'); };
+    const abierto = plecVentanaAbierta;
     if (abierto('modalIG')) return cerrarIG();
     if (abierto('modalQR')) return cerrarQR();
     if (abierto('miModal')) return cerrarModal();
     if (abierto('modalTransmisionLive')) return cerrarTransmisionLive();
     if (abierto('modalGuardados')) return cerrarGuardados();
     if (abierto('modalOpinion')) return cerrarOpinion();
-    if (abierto('modalBienvenida')) return cerrarBienvenida();
-    cerrarNav();
+    cerrarNav();   // (el búho de bienvenida atiende su propio Escape: plec-buho.js)
 });
 
 <?php if ($noticia_id > 0 && $noticia_seo): ?>
@@ -2869,9 +2843,34 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 <?php endif; ?>
 </script>
-<script src="assets/js/plec-3d.js?v=1" defer></script>
+<?php
+// El búho inteligente (Etapa 5): en qué página está el lector y, en la portada,
+// el índice para "Pregúntale al búho"
+$buho_contexto = ['vista' => 'portada'];
+if ($busqueda !== '') {
+    $buho_contexto = ['vista' => 'busqueda', 'texto' => $busqueda, 'total' => (int)($total_resultados ?? 0)];
+} elseif ($categoria_id > 0) {
+    $buho_contexto = [
+        'vista'  => 'categoria',
+        'id'     => $categoria_id,
+        'nombre' => isset($row_cat_seo['nombre']) ? (string)$row_cat_seo['nombre'] : 'esta sección',
+        'guia'   => plec_buho_guia_categoria($categoria_id),
+        'total'  => (int)($total_resultados ?? 0),
+    ];
+}
+plec_buho_json('buhoContexto', $buho_contexto);
+if ($buho_indice) plec_buho_json('buhoIndice', $buho_indice);
+?>
+<script src="assets/js/plec-3d.js?v=3" defer></script>
+<script src="assets/js/plec-buho.js?v=3" defer></script>
 <?php if ($biblio_activa): ?>
-<script src="assets/js/plec-biblioteca.js?v=1" defer></script>
+<script src="assets/js/plec-biblioteca.js?v=8" defer></script>
+<script src="assets/js/plec-biblioteca-sonido.js?v=1" defer></script>
+<script src="assets/js/plec-buho-busca.js?v=1" defer></script>
+<?php endif; ?>
+<script src="assets/js/plec-buho-guia.js?v=2" defer></script>
+<?php if (!$esta_filtrando): ?>
+<script src="assets/js/plec-mapa.js?v=1" defer></script>
 <?php endif; ?>
 </body>
 </html>

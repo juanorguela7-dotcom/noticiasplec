@@ -25,6 +25,21 @@ function plec_biblioteca_secciones() {
     ];
 }
 
+// Lo que explica el búho guía al entrar en cada sección (Etapa 5): una frase corta.
+function plec_biblioteca_guias() {
+    return [
+        'inicio'        => 'Aquí está lo último que publicamos, de todas las secciones.',
+        'colombia'      => 'Lo que pasa en el país: regiones, orden público y la vida de la gente.',
+        'politica'      => 'El poder y sus decisiones: Gobierno, Congreso, elecciones y quienes nos gobiernan.',
+        'salud'         => 'Bienestar y medicina: hospitales, prevención y consejos para cuidarte.',
+        'internacional' => 'El mundo hoy: lo que pasa fuera de Colombia y cómo nos toca.',
+        'educacion'     => 'Aulas y aprendizaje: colegios, universidades, maestros y estudiantes.',
+        'farandula'     => 'Espectáculo y cultura: música, cine, famosos y planes.',
+        'inclusion'     => 'Diversidad y derechos: historias de inclusión, accesibilidad y comunidades.',
+        'opinion'       => 'Columnas y editorial: aquí opinan nuestros columnistas; léelas con espíritu crítico.',
+    ];
+}
+
 function plec_biblioteca_imagen($img) {
     $img = (string)$img;
     if ($img === '') return 'img/placeholder.svg';
@@ -114,6 +129,7 @@ function plec_biblioteca_datos($conn, $por_estante = 12) {
                 'clave'  => $sec['clave'],
                 'nombre' => $sec['nombre'],
                 'sub'    => $sec['sub'],
+                'guia'   => plec_biblioteca_guias()[$sec['clave']] ?? '',
                 'icono'  => $sec['icono'],
                 'color'  => $sec['color'],
                 'cats'   => $sec['cats'],
@@ -144,7 +160,8 @@ function plec_biblioteca_render($datos) {
         JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE
     );
     if ($json === false) return;
-    echo '<section class="biblio" id="biblioteca" aria-label="Biblioteca de noticias">';
+    // aria-busy: los lectores de pantalla esperan mientras el JS la arma (lo quita al terminar)
+    echo '<section class="biblio" id="biblioteca" aria-label="Biblioteca de noticias" aria-busy="true">';
     echo '<div class="biblio-carga" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>';
     echo '<script type="application/json" id="biblioDatos">' . $json . '</script>';
     echo '</section>';

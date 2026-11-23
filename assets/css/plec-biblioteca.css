@@ -1,18 +1,19 @@
 /* ════════════════════════════════════════════════════════════════════
    NOTICIAS PLEC — BIBLIOTECA INTERACTIVA (portada)
-   Paneles de sección que se deslizan y se alinean al soltar, con un
-   estante de noticias por sección. Lo arma assets/js/plec-biblioteca.js.
+   Una sección debajo de otra (Inicio, Colombia, Política…), como en la
+   portada clásica; cada una con su estante horizontal de noticias. Lo
+   arma assets/js/plec-biblioteca.js.
+   Etapa 2: cada noticia es un libro 3D que flota; al abrirlo, la tapa
+   y unas hojas pasan como páginas (ver "LIBRO QUE SE ABRE").
+   Etapa 3: botón flotante de sonido (ver "SONIDO", al final).
+   Etapa 6: pulido de accesibilidad, celular y rendimiento (blancos
+   táctiles, colores forzados, sombras de la tira de pestañas, sin
+   backdrop-filter sobre cosas que se mueven).
 
    Respaldo: la portada clásica (.plec-portada-clasica) solo se oculta
    cuando <html> tiene .biblio-pendiente (cargando) o .biblio-activa
    (arrancó bien). Sin JS ninguna de las dos existe y todo queda igual.
    ════════════════════════════════════════════════════════════════════ */
-
-@property --biblio-acento {
-    syntax: '<color>';
-    inherits: true;
-    initial-value: #3b8cff;
-}
 
 /* ── INTERRUPTOR CLÁSICA / BIBLIOTECA ─────────────────────────────── */
 .biblio { display: none; }
@@ -21,38 +22,23 @@ html.biblio-activa .plec-portada-clasica { display: none; }
 html.biblio-pendiente .biblio,
 html.biblio-activa .biblio { display: block; }
 
-/* ── CONTENEDOR (ocupa todo el ancho de la ventana) ───────────────── */
+/* ── CONTENEDOR (el mismo ancho que el resto de la portada) ──────── */
 .biblio {
     --biblio-ok: 1;                 /* el JS comprueba esto para saber que el CSS cargó */
-    --biblio-acento: #3b8cff;
-    --biblio-acento-rgb: 59, 140, 255;
-    --biblio-panel-ancho: min(1080px, calc(100% - 220px));
-    --biblio-hueco: 36px;
     --biblio-libro-ancho: 176px;
     --biblio-libro-alto: 248px;
+    --biblio-libro-grosor: 22px;
     --biblio-margen: 26px;
     --biblio-ease: cubic-bezier(.2, .8, .2, 1);
 
     position: relative;
     box-sizing: border-box;
-    width: calc(100vw - var(--biblio-sbw, 0px));
-    margin: -6px 0 36px calc(50% - 50vw + var(--biblio-sbw, 0px) / 2);
-    padding: 6px 0 14px;
+    margin: 0 0 40px;
+    padding: 0;
     color: #e9e9ee;
-    transition: --biblio-acento .6s ease;
     -webkit-tap-highlight-color: transparent;
 }
 .biblio *, .biblio *::before, .biblio *::after { box-sizing: border-box; }
-
-/* Brillo de fondo del color de la sección activa */
-.biblio::before {
-    content: '';
-    position: absolute;
-    inset: 30px 0 0;
-    pointer-events: none;
-    background: radial-gradient(55% 65% at 50% 50%, rgba(var(--biblio-acento-rgb), .16), transparent 72%);
-    background: radial-gradient(55% 65% at 50% 50%, color-mix(in srgb, var(--biblio-acento) 18%, transparent), transparent 72%);
-}
 
 /* ── ESQUELETO MIENTRAS CARGA ─────────────────────────────────────── */
 .biblio-carga { display: none; }
@@ -74,7 +60,7 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
 }
 @keyframes biblio-cargando { from { background-position: 100% 0; } to { background-position: -50% 0; } }
 
-/* ── PESTAÑAS DE SECCIÓN ──────────────────────────────────────────── */
+/* ── CABECERA: BARRA DEL BÚHO Y AYUDA ───────────────────────────── */
 .biblio-cabecera {
     position: relative;
     z-index: 2;
@@ -84,47 +70,7 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
     gap: 8px;
     padding: 0 16px;
 }
-.biblio-pestanas {
-    position: relative;
-    display: flex;
-    gap: 4px;
-    max-width: 100%;
-    padding: 5px;
-    overflow-x: auto;
-    border-radius: 40px;
-    background: rgba(255, 255, 255, .04);
-    border: 1px solid rgba(255, 255, 255, .07);
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
-}
-.biblio-pestanas::-webkit-scrollbar { display: none; }
-.biblio-pestana {
-    --acento: #3b8cff;
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 15px;
-    border: 0;
-    border-radius: 30px;
-    background: transparent;
-    color: #9c9cad;
-    font: 700 11px/1 'Libre Franklin', sans-serif;
-    letter-spacing: 1.4px;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: color .25s, background-color .25s, box-shadow .25s;
-}
-.biblio-pestana i { color: var(--acento); font-size: 13px; }
-.biblio-pestana:hover { color: #fff; background: rgba(255, 255, 255, .06); }
-.biblio-pestana[aria-selected="true"] {
-    color: #fff;
-    background: rgba(var(--acento-rgb), .2);
-    box-shadow: inset 0 0 0 1px rgba(var(--acento-rgb), .6), 0 0 18px rgba(var(--acento-rgb), .28);
-}
-.biblio-pestana:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
-
-.biblio-ayuda { margin: 0; font-size: 11px; color: #747486; letter-spacing: .3px; text-align: center; }
+.biblio-ayuda { margin: 0; font-size: 11px; color: #8d8d9f; letter-spacing: .3px; text-align: center; }
 .biblio-ayuda kbd {
     display: inline-block;
     min-width: 20px;
@@ -142,41 +88,29 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
     .biblio-ayuda-tactil { display: inline; }
 }
 
-/* ── ESCENARIO Y PANELES ──────────────────────────────────────────── */
-.biblio-escenario {
+/* ── SECCIONES: UNA DEBAJO DE OTRA ────────────────────────────────── */
+.biblio-secciones {
     position: relative;
     z-index: 1;
-    overflow: hidden;
-    padding: 20px 0 22px;
-    touch-action: pan-y;            /* el desplazamiento vertical sigue siendo de la página */
-    cursor: grab;
-    user-select: none;
-    -webkit-user-select: none;
-}
-.biblio.is-arrastrando .biblio-escenario,
-.biblio.is-arrastrando .biblio-escenario * { cursor: grabbing !important; }
-
-.biblio-pista {
-    display: grid;
-    perspective: 1700px;
-    perspective-origin: 50% 45%;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    padding-top: 22px;
 }
 .biblio-panel {
     --acento: #3b8cff;
     --acento-rgb: 59, 140, 255;
-    grid-area: 1 / 1;
-    justify-self: center;
     position: relative;
-    width: var(--biblio-panel-ancho);
     padding: 22px 0 16px;
     overflow: hidden;
     border-radius: 20px;
     background: linear-gradient(160deg, #1e1e26 0%, #141419 100%);
     border: 1px solid rgba(255, 255, 255, .07);
     box-shadow: 0 34px 60px -24px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .05);
-    transform-origin: 50% 50%;
-    will-change: transform, opacity;
-    backface-visibility: hidden;
+    scroll-margin-top: 76px;        /* al saltar a una sección, que no quede debajo de la barra fija */
+    /* Las secciones lejos de la pantalla no se dibujan (menos trabajo con muchos libros 3D) */
+    content-visibility: auto;
+    contain-intrinsic-size: auto 430px;
 }
 /* Luz de color de la sección en la esquina */
 .biblio-panel::after {
@@ -195,7 +129,6 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
     z-index: 2;
     background: linear-gradient(90deg, var(--acento), transparent 75%);
 }
-.biblio-panel:not(.is-activo) { cursor: pointer; }
 
 /* Nombre gigante de marca de agua */
 .biblio-panel-marca {
@@ -236,6 +169,9 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
     line-height: 1.1;
     color: #fff;
 }
+/* Recibe el foco al elegir la sección con el teclado (desde la pestaña) */
+.biblio-panel-titulo:focus { outline: none; }
+.biblio-panel-titulo:focus-visible { outline: 2px solid var(--acento); outline-offset: 5px; border-radius: 4px; }
 .biblio-panel-sub {
     margin: 4px 0 0;
     font-size: 11px;
@@ -269,8 +205,15 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
 .biblio-estante { position: relative; z-index: 1; }
 .biblio-estante-vista {
     overflow: hidden;
-    padding: 18px 0 8px;            /* deja espacio para que el libro se eleve sin cortarse */
+    padding: 30px 0 16px;           /* espacio para que el libro flote, se eleve y proyecte su sombra sin cortarse */
+    touch-action: pan-y;            /* el deslizamiento vertical sigue siendo de la página */
+    overscroll-behavior-x: contain;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
 }
+.biblio.is-arrastrando .biblio-estante-vista,
+.biblio.is-arrastrando .biblio-estante-vista * { cursor: grabbing !important; }
 .biblio-estante-fila {
     position: relative;
     display: flex;
@@ -311,7 +254,7 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
 
 .biblio-flecha {
     position: absolute;
-    top: calc(18px + var(--biblio-libro-alto) / 2);
+    top: calc(30px + var(--biblio-libro-alto) / 2);
     z-index: 3;
     display: grid;
     place-items: center;
@@ -320,49 +263,196 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
     margin-top: -22px;
     border: 1px solid rgba(255, 255, 255, .16);
     border-radius: 50%;
-    background: rgba(12, 12, 16, .78);
+    background: rgba(12, 12, 16, .9);      /* sin backdrop-filter: el estante se mueve debajo y el desenfoque se recalculaba en cada cuadro */
     color: #fff;
     font-size: 15px;
     cursor: pointer;
     opacity: 0;
     transition: opacity .25s, background-color .25s;
-    backdrop-filter: blur(6px);
 }
 .biblio-flecha-izq { left: 10px; }
 .biblio-flecha-der { right: 10px; }
 .biblio-flecha:hover { background: rgba(var(--acento-rgb), .55); }
-.biblio-panel.is-activo .biblio-estante:hover .biblio-flecha { opacity: 1; }
+.biblio-estante:hover .biblio-flecha { opacity: 1; }
 .biblio-flecha[disabled] { opacity: 0 !important; pointer-events: none; }
 @media (hover: none) { .biblio-flecha { display: none; } }
 
-/* ── LIBRO (portada de la noticia) ────────────────────────────────── */
+/* ── LIBRO 3D (cada noticia) ──────────────────────────────────────────
+   .biblio-libro            el enlace: da la perspectiva y recibe el foco
+     .biblio-libro-flota    sube y baja despacio (cada libro a su ritmo)
+       .biblio-libro-3d     la pose: girado para mostrar el lomo; con el
+                            mouse encima (o el foco) gira despacio hasta
+                            quedar casi de frente y crece un poco, como la
+                            edición impresa de la portada (.plec-book)
+         .biblio-lomo       el lomo, con el color de la sección
+         .biblio-tapa       la portada (imagen, categoría y título)
+         ::before / ::after los cantos de las hojas (derecha y arriba)
+     .biblio-sombra         la sombra sobre la repisa
+   El libro que vuela al abrirse lee la pose real de .biblio-libro-3d
+   (también a mitad del giro). Si cambias la perspectiva, actualiza
+   PERSPECTIVA en plec-biblioteca.js. */
 .biblio-libro {
     --acento: #8a8a99;
     --acento-rgb: 138, 138, 153;
+    --giro: 24deg;          /* el JS le da a cada libro un giro algo distinto */
     position: relative;
     display: block;
     width: var(--biblio-libro-ancho);
     height: var(--biblio-libro-alto);
-    overflow: hidden;
-    border-radius: 4px 10px 10px 4px;
-    background: linear-gradient(150deg, rgba(var(--acento-rgb), .5), #16161c 72%);
-    box-shadow: 0 16px 24px -12px rgba(0, 0, 0, .9);
+    perspective: 900px;
     color: #fff;
     text-decoration: none;
     outline: none;
-    transition: transform .35s var(--biblio-ease), box-shadow .35s var(--biblio-ease);
     -webkit-user-drag: none;
 }
-/* Insinuación del lomo (en la etapa 2 será un lomo 3D real) */
-.biblio-libro::before {
+.biblio-libro-flota {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    animation: biblio-flotar var(--flota-dur, 5.4s) ease-in-out var(--flota-retraso, 0s) infinite;
+    animation-play-state: paused;
+}
+.biblio-libro-3d {
+    --ry: var(--giro);
+    --rx: -6deg;
+    --sube: 0px;
+    --acerca: 0px;
+    --escala: 1;
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform: translate3d(0, var(--sube), var(--acerca)) rotateX(var(--rx)) rotateY(var(--ry)) scale(var(--escala));
+    /* El mismo tiempo y la misma curva que la edición impresa (.plec-book), al ir y al volver */
+    transition: transform .9s var(--biblio-ease);
+}
+@keyframes biblio-flotar {
+    0%, 100% { transform: translate3d(0, 0, 0); }
+    50%      { transform: translate3d(0, -8px, 0); }
+}
+
+/* Cantos de las hojas: a la derecha y arriba de la tapa */
+.biblio-libro-3d::before,
+.biblio-libro-3d::after {
     content: '';
     position: absolute;
-    top: 0; bottom: 0; left: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+.biblio-libro-3d::before {
+    top: 3px;
+    bottom: 3px;
+    left: calc(100% - 3px - (var(--biblio-libro-grosor) - 2px) / 2);
+    width: calc(var(--biblio-libro-grosor) - 2px);
+    transform: rotateY(90deg);
+    background: repeating-linear-gradient(90deg, #4c4841 0 1px, #2c2925 1px 2px);
+}
+.biblio-libro-3d::after {
+    left: 2px;
+    right: 3px;
+    top: calc(3px - (var(--biblio-libro-grosor) - 2px) / 2);
+    height: calc(var(--biblio-libro-grosor) - 2px);
+    transform: rotateX(90deg);
+    background: repeating-linear-gradient(0deg, #4c4841 0 1px, #2c2925 1px 2px);
+}
+
+/* Lomo */
+.biblio-lomo {
+    position: absolute;
+    top: 0;
+    left: calc(var(--biblio-libro-grosor) / -2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--biblio-libro-grosor);
+    height: 100%;
+    overflow: hidden;
+    border-radius: 3px 0 0 3px;
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, .38), rgba(255, 255, 255, .14) 45%, rgba(0, 0, 0, .32)),
+        linear-gradient(180deg, rgba(var(--acento-rgb), .95), rgba(var(--acento-rgb), .6));
+    transform: rotateY(-90deg);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+/* Nervios del lomo */
+.biblio-lomo::before,
+.biblio-lomo::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(0, 0, 0, .35);
+    box-shadow: 0 4px 0 rgba(0, 0, 0, .2);
+}
+.biblio-lomo::before { top: 12px; }
+.biblio-lomo::after { bottom: 16px; }
+.biblio-lomo-texto {
+    max-height: 72%;
+    overflow: hidden;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font: 800 8px/1 'Libre Franklin', sans-serif;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(0, 0, 0, .72);
+}
+
+/* Tapa (portada) */
+.biblio-tapa {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 3px 9px 9px 3px;
+    background: linear-gradient(150deg, rgba(var(--acento-rgb), .5), #16161c 72%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
+    transform: translateZ(calc(var(--biblio-libro-grosor) / 2));
+}
+/* Bisagra junto al lomo y brillo del cartón */
+.biblio-tapa::before,
+.biblio-tapa::after {
+    content: '';
+    position: absolute;
+    inset: 0;
     z-index: 3;
-    width: 11px;
-    background: linear-gradient(90deg, rgba(0, 0, 0, .5), rgba(255, 255, 255, .1) 60%, transparent);
     pointer-events: none;
 }
+.biblio-tapa::before {
+    right: auto;
+    width: 12px;
+    background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(255, 255, 255, .12) 55%, transparent);
+}
+.biblio-tapa::after { background: linear-gradient(105deg, rgba(255, 255, 255, .13), transparent 32%); }
+/* Sombra sobre la repisa: se encoge cuando el libro sube */
+.biblio-sombra {
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    bottom: -14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(0, 0, 0, .62), transparent);
+    pointer-events: none;
+    animation: biblio-sombra var(--flota-dur, 5.4s) ease-in-out var(--flota-retraso, 0s) infinite;
+    animation-play-state: paused;
+    transition: opacity .4s;
+}
+@keyframes biblio-sombra {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(.8, .7); }
+}
+
+/* Solo flotan los libros de la sección que se ve */
+.biblio-panel.is-visible .biblio-libro-flota,
+.biblio-panel.is-visible .biblio-sombra { animation-play-state: running; }
+
+/* El libro abierto deja su hueco en el estante (y se queda quieto) */
+.biblio-libro.is-fuera { visibility: hidden; }
+.biblio-libro.is-fuera .biblio-libro-flota,
+.biblio-libro.is-fuera .biblio-sombra { animation-play-state: paused; }
+
 .biblio-portada { position: absolute; inset: 0; }
 .biblio-portada-icono {
     position: absolute;
@@ -442,43 +532,32 @@ html.biblio-pendiente:not(.biblio-activa) .biblio-carga {
 }
 .biblio-fecha i { margin-right: 3px; color: var(--acento); }
 
+/* Seleccionado (mouse encima o foco con teclado): como la edición impresa de la
+   portada, gira despacio hasta quedar casi de frente (4° en vez de -4°, porque
+   estos libros muestran el lomo del otro lado) y crece un 5 %; no sigue al puntero */
 @media (hover: hover) {
-    .biblio-panel.is-activo .biblio-libro:hover {
-        transform: translateY(-9px);
-        box-shadow: 0 28px 34px -16px rgba(0, 0, 0, .95), 0 0 0 2px rgba(var(--acento-rgb), .85), 0 0 28px rgba(var(--acento-rgb), .32);
+    .biblio-panel .biblio-libro:hover .biblio-libro-3d {
+        --ry: 4deg;
+        --rx: 0deg;
+        --escala: 1.05;
+    }
+    .biblio-panel .biblio-libro:hover .biblio-tapa {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06), 0 0 0 2px rgba(var(--acento-rgb), .85), 0 0 26px rgba(var(--acento-rgb), .35);
     }
 }
-.biblio-libro:focus-visible {
-    transform: translateY(-9px);
-    box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--acento), 0 26px 32px -16px rgba(0, 0, 0, .95);
+.biblio-libro:focus-visible .biblio-libro-3d {
+    --ry: 4deg;
+    --rx: 0deg;
+    --escala: 1.05;
 }
-
-/* ── PUNTOS DE POSICIÓN ───────────────────────────────────────────── */
-.biblio-puntos {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    justify-content: center;
-    gap: 7px;
-}
-.biblio-puntos span {
-    width: 6px;
-    height: 6px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, .2);
-    transition: width .35s var(--biblio-ease), background-color .35s;
-}
-.biblio-puntos span.is-activo { width: 24px; background: var(--biblio-acento); }
-
-/* Texto solo para lectores de pantalla */
-.biblio-sr {
-    position: absolute !important;
-    width: 1px; height: 1px;
-    margin: -1px; padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-    border: 0;
+.biblio-libro:focus-visible .biblio-tapa { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--acento); }
+/* Mientras se arrastra el estante, ningún libro se queda girado */
+.biblio.is-arrastrando .biblio-panel .biblio-libro .biblio-libro-3d {
+    --ry: var(--giro);
+    --rx: -6deg;
+    --sube: 0px;
+    --acerca: 0px;
+    --escala: 1;
 }
 
 /* ── MODO CLARO Y ALTO CONTRASTE (botones ☀️ y ◑ del sitio) ─────────── */
@@ -493,40 +572,29 @@ body.modo-claro .biblio-panel-marca { color: rgba(0, 0, 0, .035); }
 body.modo-claro .biblio-panel-titulo { color: #111; }
 body.modo-claro .biblio-panel-sub { color: #6b6b78; }
 body.modo-claro .biblio-ver-todo { color: #111; }
-body.modo-claro .biblio-pestanas { background: rgba(0, 0, 0, .04); border-color: rgba(0, 0, 0, .08); }
-body.modo-claro .biblio-pestana { color: #55556a; }
-body.modo-claro .biblio-pestana:hover { color: #111; background: rgba(0, 0, 0, .05); }
-body.modo-claro .biblio-pestana[aria-selected="true"] { color: #111; }
-body.modo-claro .biblio-ayuda { color: #777; }
+body.modo-claro .biblio-ayuda { color: #5a5a68; }
 body.modo-claro .biblio-ayuda kbd { border-color: #c8c8d2; color: #444; }
 body.modo-claro .biblio-repisa { background: linear-gradient(180deg, rgba(0, 0, 0, .1), rgba(0, 0, 0, .03) 45%, rgba(0, 0, 0, .18)); box-shadow: 0 10px 16px -8px rgba(0, 0, 0, .35); }
 body.modo-claro .biblio-progreso { background: rgba(0, 0, 0, .08); }
-body.modo-claro .biblio-puntos span { background: rgba(0, 0, 0, .18); }
-body.modo-claro .biblio-puntos span.is-activo { background: var(--biblio-acento); }
+body.modo-claro .biblio-sombra { background: radial-gradient(closest-side, rgba(0, 0, 0, .3), transparent); }
 
-body.alto-contraste .biblio-panel,
-body.alto-contraste .biblio-pestanas { border: 2px solid #fff !important; }
-body.alto-contraste .biblio-libro { outline: 2px solid #fff; outline-offset: -2px; }
+body.alto-contraste .biblio-panel { border: 2px solid #fff !important; }
+body.alto-contraste .biblio-tapa { outline: 2px solid #fff; outline-offset: -2px; }
+body.alto-contraste .biblio-tapa::after { display: none; }
 body.alto-contraste .biblio-info { background: #000; }
 
 /* ── TAMAÑOS ──────────────────────────────────────────────────────── */
-@media (max-width: 1024px) {
-    .biblio { --biblio-panel-ancho: calc(100% - 110px); --biblio-hueco: 24px; }
-}
 @media (max-width: 700px) {
     .biblio {
-        --biblio-panel-ancho: calc(100% - 40px);
-        --biblio-hueco: 12px;
         --biblio-libro-ancho: 136px;
         --biblio-libro-alto: 196px;
+        --biblio-libro-grosor: 18px;
         --biblio-margen: 16px;
         margin-bottom: 24px;
     }
     .biblio-carga { gap: 14px; padding-top: 70px; }
-    .biblio-pestanas { justify-content: flex-start; }
-    .biblio-pestana { padding: 8px 12px; font-size: 10px; letter-spacing: 1px; }
-    .biblio-escenario { padding: 14px 0 16px; }
-    .biblio-panel { padding-top: 16px; border-radius: 16px; }
+    .biblio-secciones { gap: 20px; padding-top: 16px; }
+    .biblio-panel { padding-top: 16px; border-radius: 16px; scroll-margin-top: 64px; contain-intrinsic-size: auto 360px; }
     .biblio-panel-cab { gap: 10px; }
     .biblio-panel-icono { width: 38px; height: 38px; font-size: 16px; border-radius: 11px; }
     .biblio-panel-titulo { font-size: 22px; }
@@ -534,7 +602,9 @@ body.alto-contraste .biblio-info { background: #000; }
     .biblio-ver-todo { padding: 8px 11px; font-size: 0; gap: 0; }
     .biblio-ver-todo i { font-size: 13px; }
     .biblio-panel-marca { font-size: 96px; bottom: -22px; }
-    .biblio-estante-vista { padding-top: 14px; }
+    .biblio-estante-vista { padding-top: 24px; }
+    .biblio-flecha { top: calc(24px + var(--biblio-libro-alto) / 2); }
+    .biblio-lomo-texto { font-size: 7px; letter-spacing: 1.2px; }
     .biblio-estante-fila { gap: 14px; }
     .biblio-titulo { font-size: 13px; }
     .biblio-info { padding: 40px 10px 10px 16px; }
@@ -542,11 +612,617 @@ body.alto-contraste .biblio-info { background: #000; }
     .biblio-nuevo { left: 15px; top: 31px; }
 }
 
-/* ── MOVIMIENTO REDUCIDO (el JS además quita el giro 3D y la inercia) ── */
+/* ── PANTALLAS TÁCTILES: blancos de al menos 40 px para el dedo ──── */
+@media (pointer: coarse) {
+    .biblio-ver-todo { min-height: 40px; min-width: 40px; justify-content: center; }
+}
+
+/* ── TEXTO SOLO PARA LECTORES DE PANTALLA ─────────────────────────── */
+.biblio-sr {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ── COLORES FORZADOS (alto contraste de Windows) ─────────────────────
+   Ahí las sombras no se dibujan: el anillo de foco de los libros, hecho
+   con box-shadow, desaparecía. Se usa un contorno del color del sistema. */
+@media (forced-colors: active) {
+    .biblio-libro:focus-visible .biblio-tapa { outline: 3px solid Highlight; outline-offset: 3px; }
+    .biblio-progreso span { background: Highlight; }
+    .biblio-sonido-vol input:focus-visible { outline: 2px solid Highlight; }
+    /* La marca de agua (casi transparente) se volvía texto blanco macizo detrás de los libros */
+    .biblio-panel-marca { display: none; }
+}
+
+/* ── MOVIMIENTO REDUCIDO (el JS además quita la inercia y la animación al abrir) ── */
 @media (prefers-reduced-motion: reduce) {
     .biblio, .biblio *, .biblio *::before, .biblio *::after {
         transition-duration: .01ms !important;
         animation: none !important;
     }
-    .biblio-libro:hover, .biblio-libro:focus-visible { transform: none !important; }
+    /* Los libros no flotan, pero al seleccionarlos giran hacia el frente igual que la
+       edición impresa de la portada, que con este ajuste también lo hace (plec-3d.css
+       solo le quita la flotación): un giro corto, que pide el propio usuario */
+    .biblio .biblio-libro-3d { transition-duration: .9s !important; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   LIBRO QUE SE ABRE (lector)
+   Al hacer clic, una copia grande del libro sale del estante y vuela al
+   centro; la tapa y tres hojas pasan como páginas y la página derecha se
+   convierte en la ventana de la noticia de siempre (#miModal), que en
+   este modo se ve como la página de un libro. Lo anima el JS con la Web
+   Animations API; aquí solo están las formas y los colores.
+
+   .biblio-lector              capa fija encima de todo (aria-hidden)
+     .biblio-lector-fondo      oscurece la página
+     .biblio-lector-vuelo      posición y escala (vuela) + la perspectiva
+       .biblio-lector-libro    el libro en 3D (gira y se abre)
+         contra, lomo, cantos, cabeza, página, hojas y tapa
+     .biblio-lector-morph      la hoja que crece hasta la ventana
+   Medidas (las pone el JS): --lw ancho, --lh alto, --lg grosor,
+   --lx/--ly esquina del libro cerrado y centrado, --lp perspectiva.
+   ════════════════════════════════════════════════════════════════════ */
+.biblio-lector {
+    --lw: 300px;
+    --lh: 423px;
+    --lg: 26px;
+    --lx: 0px;
+    --ly: 0px;
+    --lp: 1500px;
+    --acento: #3b8cff;
+    --acento-rgb: 59, 140, 255;
+    position: fixed;
+    inset: 0;
+    z-index: 11001;                 /* encima de #miModal (11000), debajo de QR e historia */
+    overflow: hidden;
+    color: #fff;
+    font-family: 'Libre Franklin', sans-serif;
+    cursor: pointer;                /* un clic adelanta la animación */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+.biblio-lector *, .biblio-lector *::before, .biblio-lector *::after { box-sizing: border-box; }
+.biblio-lector-fondo {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, .95);   /* el mismo fondo que la ventana de la noticia */
+}
+.biblio-lector-vuelo {
+    position: absolute;
+    left: var(--lx);
+    top: var(--ly);
+    width: var(--lw);
+    height: var(--lh);
+    perspective: var(--lp);
+    will-change: transform, opacity;
+}
+.biblio-lector-libro {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+.biblio-lector-libro > div { position: absolute; transform-style: preserve-3d; }
+
+/* Contratapa: por dentro es el borde que asoma alrededor de la página derecha */
+.biblio-lector-contra {
+    inset: 0;
+    border-radius: 3px 10px 10px 3px;
+    background: linear-gradient(150deg, rgba(var(--acento-rgb), .45), #121216 75%);
+    box-shadow: 0 34px 60px -14px rgba(0, 0, 0, .85);
+    transform: translateZ(calc(var(--lg) / -2));
+}
+.biblio-lector-lomo {
+    top: 0;
+    left: calc(var(--lg) / -2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--lg);
+    height: 100%;
+    overflow: hidden;
+    border-radius: 3px 0 0 3px;
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, .38), rgba(255, 255, 255, .14) 45%, rgba(0, 0, 0, .32)),
+        linear-gradient(180deg, rgba(var(--acento-rgb), .95), rgba(var(--acento-rgb), .6));
+    transform: rotateY(-90deg);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+.biblio-lector-lomo span {
+    max-height: 72%;
+    overflow: hidden;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-size: calc(var(--lg) * .36);
+    font-weight: 800;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(0, 0, 0, .72);
+}
+.biblio-lector-cantos {
+    top: 3px;
+    bottom: 3px;
+    left: calc(100% - 4px - (var(--lg) - 2px) / 2);
+    width: calc(var(--lg) - 2px);
+    background: repeating-linear-gradient(90deg, #4c4841 0 1px, #2c2925 1px 2px);
+    transform: rotateY(90deg);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+.biblio-lector-cabeza {
+    left: 2px;
+    right: 4px;
+    top: calc(3px - (var(--lg) - 2px) / 2);
+    height: calc(var(--lg) - 2px);
+    background: repeating-linear-gradient(0deg, #4c4841 0 1px, #2c2925 1px 2px);
+    transform: rotateX(90deg);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* Página, hojas y tapa: giran sobre el lomo (borde izquierdo) */
+.biblio-lector-pagina,
+.biblio-lector-hoja { top: 3px; bottom: 3px; left: 0; right: 4px; }
+.biblio-lector-tapa { inset: 0; }
+.biblio-lector-tapa,
+.biblio-lector-hoja { transform-origin: 0 50%; }
+.biblio-lector-cara {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: 0 7px 7px 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+.biblio-lector-dorso { border-radius: 7px 0 0 7px; transform: rotateY(180deg); }
+/* Sombra que oscurece la hoja mientras gira (la anima el JS) */
+.biblio-lector-luz {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Papel: hojas de color carbón, con el pliegue oscuro junto al lomo */
+.biblio-lector-pagina,
+.biblio-lector-frente.biblio-lector-lineas {
+    background: linear-gradient(90deg, rgba(0, 0, 0, .45), transparent 15%), #1c1b19;
+}
+.biblio-lector-dorso.biblio-lector-lineas,
+.biblio-lector-lamina {
+    background: linear-gradient(270deg, rgba(0, 0, 0, .45), transparent 15%), #1c1b19;
+}
+.biblio-lector-pagina { overflow: hidden; border-radius: 0 7px 7px 0; transform: translateZ(calc(var(--lg) / -2 + 1px)); }
+/* Renglones de texto de las hojas que pasan */
+.biblio-lector-lineas::before {
+    content: '';
+    position: absolute;
+    inset: 13% 12% 16% 14%;
+    background: repeating-linear-gradient(180deg, rgba(255, 255, 255, .085) 0 2px, transparent 2px calc(var(--lw) * .052));
+}
+.biblio-lector-dorso.biblio-lector-lineas::before { inset: 13% 14% 16% 12%; }
+
+/* Tapa por fuera: la misma portada del estante, en grande */
+.biblio-lector-portada {
+    border-radius: 3px 10px 10px 3px;
+    background: linear-gradient(150deg, rgba(var(--acento-rgb), .5), #16161c 72%);
+}
+.biblio-lector-portada img,
+.biblio-lector-lamina-img img {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.biblio-lector-portada::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 3;
+    width: 7%;
+    background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(255, 255, 255, .12) 55%, transparent);
+}
+.biblio-lector-icono {
+    position: absolute;
+    top: 38%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: calc(var(--lw) * .26);
+    color: rgba(var(--acento-rgb), .35);
+}
+.biblio-lector-portada .biblio-lector-cat {
+    position: absolute;
+    top: 5.5%;
+    left: 9.5%;
+    z-index: 2;
+    max-width: 80%;
+    overflow: hidden;
+    padding: .45em .9em;
+    border-radius: 2em;
+    background: rgba(0, 0, 0, .62);
+    font-size: calc(var(--lw) * .051);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.biblio-lector-cat {
+    color: var(--acento);
+    font-weight: 800;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+}
+.biblio-lector-info {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    padding: 26% 7% 7% 10.8%;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .7) 38%, rgba(0, 0, 0, .92));
+}
+.biblio-lector-titulo {
+    display: -webkit-box;
+    overflow: hidden;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #fff;
+    -webkit-box-orient: vertical;
+}
+.biblio-lector-portada .biblio-lector-titulo { font-size: calc(var(--lw) * .085); -webkit-line-clamp: 4; }
+
+/* Tapa por dentro: guarda con puntos del color de la sección y ex libris */
+.biblio-lector-guarda {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px 3px 3px 10px;
+    background:
+        linear-gradient(270deg, rgba(0, 0, 0, .5), transparent 18%),
+        radial-gradient(circle, rgba(var(--acento-rgb), .3) 0 1.5px, transparent 2px) 0 0 / calc(var(--lw) * .08) calc(var(--lw) * .08),
+        linear-gradient(150deg, #24232a, #141418);
+}
+.biblio-lector-exlibris {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .6em;
+    max-width: 76%;
+    padding: 9% 10%;
+    border: 1px solid rgba(var(--acento-rgb), .5);
+    border-radius: 4px;
+    background: rgba(10, 10, 12, .8);
+    font-size: calc(var(--lw) * .042);
+    text-align: center;
+}
+.biblio-lector-exlibris b { font: 900 calc(var(--lw) * .075)/1.1 'Playfair Display', serif; color: #fff; }
+.biblio-lector-exlibris small {
+    font-size: 1em;
+    font-weight: 800;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--acento);
+}
+
+/* Última hoja por detrás: lámina con la foto (queda como página izquierda) */
+.biblio-lector-lamina {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6%;
+    padding: 12% 13% 12% 11%;
+}
+.biblio-lector-lamina-img {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 68%;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-radius: 3px;
+    background: linear-gradient(150deg, rgba(var(--acento-rgb), .4), #16161c 80%);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, .08), 0 14px 24px -12px #000;
+    color: rgba(var(--acento-rgb), .5);
+    font-size: calc(var(--lw) * .2);
+}
+.biblio-lector-pie {
+    font-size: calc(var(--lw) * .04);
+    font-weight: 800;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--acento);
+}
+
+/* Primera página (derecha al abrir): adelanto de la noticia */
+.biblio-lector-previa {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--lw) * .035);
+    padding: 14% 11% 10% 14%;
+}
+.biblio-lector-previa .biblio-lector-cat { align-self: flex-start; font-size: calc(var(--lw) * .042); }
+.biblio-lector-previa .biblio-lector-titulo { font-size: calc(var(--lw) * .072); line-height: 1.22; -webkit-line-clamp: 5; }
+.biblio-lector-raya {
+    flex: 0 0 auto;
+    width: 22%;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--acento);
+}
+.biblio-lector-resumen {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: calc(var(--lw) * .046);
+    line-height: 1.6;
+    color: #b9b5ad;
+    -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical;
+}
+.biblio-lector-fecha {
+    margin-top: auto;
+    font-size: calc(var(--lw) * .038);
+    letter-spacing: .05em;
+    color: #8a867e;
+}
+
+/* La hoja que crece hasta la ventana de la noticia (o encoge al cerrar) */
+.biblio-lector-morph {
+    position: absolute;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    transform-origin: 0 0;
+    will-change: transform, opacity;
+}
+
+/* ── LA VENTANA DE LA NOTICIA COMO PÁGINA DE LIBRO ────────────────── */
+/* Mismo papel que la hoja que crece, para que el paso de una a otra no se note */
+.biblio-lector-morph,
+#miModal.biblio-modo-libro .modal-content {
+    border: 1px solid #36322c;
+    border-radius: 4px 14px 14px 4px;
+    background: linear-gradient(90deg, rgba(0, 0, 0, .42), rgba(0, 0, 0, 0) 46px), #1c1b19;
+}
+#miModal.biblio-modo-libro .modal-content {
+    animation: none;                /* la entrada la hace el libro */
+    box-shadow:
+        3px 0 0 -1px #2b2824,
+        6px 0 0 -2px #24221f,
+        9px 0 0 -3px #1e1c1a,       /* hojas que asoman por el borde */
+        0 40px 90px -20px rgba(0, 0, 0, .9);
+}
+/* Cinta de marcapáginas con el color de la sección */
+#miModal.biblio-modo-libro .modal-content::after {
+    content: '';
+    position: absolute;
+    top: -1px;
+    right: 78px;
+    width: 16px;
+    height: 58px;
+    background:
+        linear-gradient(90deg, rgba(0, 0, 0, .25), transparent 40%, rgba(255, 255, 255, .14) 60%, rgba(0, 0, 0, .2)),
+        var(--acento, #3b8cff);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+    pointer-events: none;
+}
+@media (max-width: 700px) {
+    #miModal.biblio-modo-libro .modal-content::after { right: 68px; height: 44px; width: 13px; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SONIDO (Etapa 3): botón flotante para silenciar y volumen
+   Lo crea assets/js/plec-biblioteca-sonido.js dentro de <body> y solo
+   se ve mientras la biblioteca está en pantalla. Con mouse, el volumen
+   se despliega al pasar por encima o al llegar con el teclado; en
+   tabletas se ve siempre y en el celular solo queda el botón.
+   ════════════════════════════════════════════════════════════════════ */
+.biblio-sonido {
+    --sonido-acento: var(--azul, #3b8cff);
+    position: fixed;
+    left: max(20px, env(safe-area-inset-left));
+    bottom: max(20px, env(safe-area-inset-bottom));
+    z-index: 9000;                  /* debajo del menú lateral (10010) y de las ventanas (11000) */
+    display: flex;
+    align-items: center;
+    height: 44px;
+    border-radius: 22px;
+    background: rgba(22, 22, 28, .86);
+    border: 1px solid rgba(255, 255, 255, .1);
+    box-shadow: 0 10px 28px -10px rgba(0, 0, 0, .7);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: #e9e9ee;
+    font: 13px/1 'Libre Franklin', sans-serif;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(12px);
+    transition: opacity .3s, transform .3s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .3s;
+}
+.biblio-sonido.is-visible { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.biblio-sonido *, .biblio-sonido *::before, .biblio-sonido *::after { box-sizing: border-box; }
+
+.biblio-sonido-boton {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 16px;
+    cursor: pointer;
+    transition: color .2s, background-color .2s;
+}
+.biblio-sonido-boton i { width: 1.25em; text-align: center; }
+.biblio-sonido-boton:hover { background: rgba(255, 255, 255, .08); }
+.biblio-sonido-boton:focus-visible { outline: 2px solid var(--sonido-acento); outline-offset: 2px; }
+.biblio-sonido.is-mudo .biblio-sonido-boton { color: #8a8a99; }
+
+/* Volumen: plegado hasta que se pasa por encima o se enfoca */
+.biblio-sonido-vol {
+    display: flex;
+    align-items: center;
+    width: 0;
+    height: 100%;
+    padding: 0;
+    overflow: hidden;
+    opacity: 0;
+    cursor: pointer;
+    transition: width .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1), opacity .2s;
+}
+.biblio-sonido:hover .biblio-sonido-vol,
+.biblio-sonido:focus-within .biblio-sonido-vol { width: 112px; padding: 0 16px 0 4px; opacity: 1; }
+/* Tabletas: el volumen siempre a la vista. En el celular, solo el botón (un círculo
+   de 44 px): la barra tapaba los libros y el volumen ya lo llevan los botones del
+   teléfono. (Etapa 6) */
+@media (hover: none) and (min-width: 701px) {
+    .biblio-sonido-vol { width: 112px; padding: 0 16px 0 4px; opacity: 1; }
+}
+@media (hover: none) and (max-width: 700px) {
+    .biblio-sonido-vol { display: none; }
+}
+/* En pantallas táctiles, sin desenfoque del fondo: la página se desliza debajo del
+   botón fijo y el desenfoque se recalculaba en cada cuadro (60 fps en el celular) */
+@media (hover: none), (max-width: 700px) {
+    .biblio-sonido { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(22, 22, 28, .95); }
+}
+.biblio-sonido-vol input {
+    --vol: 60%;
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: 24px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+}
+.biblio-sonido-vol input:focus { outline: none; }
+.biblio-sonido-vol input::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--sonido-acento) var(--vol), rgba(255, 255, 255, .18) var(--vol));
+}
+.biblio-sonido-vol input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    border: 0;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+    transition: transform .15s, box-shadow .15s;
+}
+.biblio-sonido-vol input:active::-webkit-slider-thumb { transform: scale(1.15); }
+/* El anillo de foco va en el tirador: el contenedor recorta lo que sobresale */
+.biblio-sonido-vol input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--sonido-acento), 0 1px 4px rgba(0, 0, 0, .5); }
+.biblio-sonido-vol input::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, .18); }
+.biblio-sonido-vol input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--sonido-acento); }
+.biblio-sonido-vol input::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 0;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+}
+.biblio-sonido-vol input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--sonido-acento), 0 1px 4px rgba(0, 0, 0, .5); }
+.biblio-sonido.is-mudo .biblio-sonido-vol input { --sonido-acento: #6b6b78; }
+
+.biblio-sonido-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+body.modo-claro .biblio-sonido {
+    background: rgba(255, 255, 255, .92);
+    border-color: rgba(0, 0, 0, .1);
+    color: #1b1b22;
+    box-shadow: 0 10px 26px -12px rgba(0, 0, 0, .35);
+}
+body.modo-claro .biblio-sonido-boton:hover { background: rgba(0, 0, 0, .06); }
+body.modo-claro .biblio-sonido.is-mudo .biblio-sonido-boton { color: #77778a; }
+body.modo-claro .biblio-sonido-vol input::-webkit-slider-runnable-track {
+    background: linear-gradient(90deg, var(--sonido-acento) var(--vol), rgba(0, 0, 0, .15) var(--vol));
+}
+body.modo-claro .biblio-sonido-vol input::-moz-range-track { background: rgba(0, 0, 0, .15); }
+body.modo-claro .biblio-sonido-vol input::-webkit-slider-thumb { box-shadow: 0 0 0 1px rgba(0, 0, 0, .18), 0 1px 4px rgba(0, 0, 0, .3); }
+body.modo-claro .biblio-sonido-vol input::-moz-range-thumb { box-shadow: 0 0 0 1px rgba(0, 0, 0, .18), 0 1px 4px rgba(0, 0, 0, .3); }
+body.alto-contraste .biblio-sonido { background: #000; border: 2px solid #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+@media (max-width: 700px) {
+    .biblio-sonido { left: max(12px, env(safe-area-inset-left)); bottom: max(14px, env(safe-area-inset-bottom)); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .biblio-sonido, .biblio-sonido-vol, .biblio-sonido-boton { transition: none; }
+    .biblio-sonido { transform: none; }
+}
+@media print {
+    .biblio-sonido { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   RESPUESTAS DEL BÚHO (Etapa 5): un estante más, arriba de las secciones
+   Lo pone PlecBiblioteca.resultados() cuando se usa "Pregúntale al búho"
+   (la barra y lo que dice el búho están en plec-buho.css).
+   ════════════════════════════════════════════════════════════════════ */
+.biblio-resultados {
+    border-color: rgba(var(--acento-rgb), .35);
+    box-shadow: 0 34px 60px -24px rgba(0, 0, 0, .75), inset 0 1px 0 rgba(255, 255, 255, .05), 0 0 0 1px rgba(var(--acento-rgb), .12);
+    animation: biblio-resultados-entra .45s var(--biblio-ease);
+    content-visibility: visible;
+}
+@keyframes biblio-resultados-entra { from { opacity: 0; transform: translateY(-10px); } }
+.biblio-resultados .biblio-panel-icono .buho-cara { width: 34px; height: auto; }
+.biblio-resultados-dice {
+    max-width: 62ch;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    line-height: 1.45;
+    color: #cfcfda;
+}
+.biblio-resultados-vacio { position: relative; z-index: 1; padding: 18px var(--biblio-margen) 10px; }
+body.modo-claro .biblio-resultados-dice { color: #3b3b48; }
+@media (max-width: 700px) {
+    .biblio-resultados-dice { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .biblio-resultados { animation: none; } }

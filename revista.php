@@ -55,7 +55,7 @@ function rutaImagenRevista($img) {
             .btn-volver { top: auto; bottom: 16px; left: 16px; }
         }
     </style>
-    <link rel="stylesheet" href="assets/css/plec-3d.css?v=1">
+    <link rel="stylesheet" href="assets/css/plec-3d.css?v=3">
 </head>
 <body>
 
@@ -156,6 +156,6 @@ document.addEventListener('keydown', function (e) {
     }
 });
 </script>
-<script src="assets/js/plec-3d.js?v=1" defer></script>
+<script src="assets/js/plec-3d.js?v=3" defer></script>
 </body>
 </html>

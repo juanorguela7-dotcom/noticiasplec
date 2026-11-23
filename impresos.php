@@ -44,7 +44,7 @@ unset($_SESSION['mensaje_impreso']);
             header h1 { font-size: 28px; }
         }
     </style>
-    <link rel="stylesheet" href="assets/css/plec-3d.css?v=1">
+    <link rel="stylesheet" href="assets/css/plec-3d.css?v=3">
 </head>
 <body>
 
@@ -103,6 +103,6 @@ unset($_SESSION['mensaje_impreso']);
         ?>
     </div>
 </div>
-<script src="assets/js/plec-3d.js?v=1" defer></script>
+<script src="assets/js/plec-3d.js?v=3" defer></script>
 </body>
 </html>

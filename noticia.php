@@ -110,7 +110,7 @@ $video_html = renderizarVideoEmbed($noticia['video_url'] ?? '');
             .cuerpo { font-size: 17px; }
         }
     </style>
-    <link rel="stylesheet" href="assets/css/plec-3d.css?v=1">
+    <link rel="stylesheet" href="assets/css/plec-3d.css?v=3">
 </head>
 <body>
     <header class="plec-hero">
@@ -154,7 +154,7 @@ $video_html = renderizarVideoEmbed($noticia['video_url'] ?? '');
     // Contar la visita para "Lo más leído"
     fetch('contar_vista.php', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'id=<?php echo $id; ?>' }).catch(function () {});
     </script>
-    <script src="assets/js/plec-3d.js?v=1" defer></script>
+    <script src="assets/js/plec-3d.js?v=3" defer></script>
 </body>
 </html>
 <?php ob_end_flush(); ?>

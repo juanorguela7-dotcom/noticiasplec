@@ -1,0 +1,539 @@
+/* ════════════════════════════════════════════════════════════════════
+   NOTICIAS PLEC — EL BÚHO GUÍA (Etapa 4) E INTELIGENTE (Etapa 5)
+   La escena la arma assets/js/plec-buho.js. El globo es de "papel"
+   claro con tinta oscura, igual en modo oscuro y en modo claro.
+   Etapa 5 (al final): el rincón donde se queda el búho y la barra
+   "Pregúntale al búho" (assets/js/plec-buho-guia.js).
+   Etapa 6: blancos táctiles, colores forzados y sombras en la fila de
+   temas del celular.
+   ════════════════════════════════════════════════════════════════════ */
+.buho-escena, .buho-dock {
+    --buho-tinta: #1b2240;
+    --buho-tinta-suave: #5d6488;
+    --buho-papel: #fffdf6;
+    --buho-azul: #1a73e8;
+    --buho-azul-osc: #0d47a1;
+    --buho-rojo: #e53935;
+    --buho-ambar: #f6b021;
+}
+.buho-escena {
+    position: fixed; inset: 0; z-index: 99999;
+    font-family: 'Libre Franklin', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    transition: opacity .28s ease;
+}
+.buho-escena[hidden], .buho-escena [hidden],
+.buho-dock[hidden], .buho-dock [hidden] { display: none !important; }
+.buho-escena.is-fundido { opacity: 0; }
+
+.buho-fondo {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 100%, rgba(26, 115, 232, .2), transparent 60%), rgba(5, 8, 20, .64);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    opacity: 0; transition: opacity .45s ease;
+}
+.buho-escena.is-visible .buho-fondo { opacity: 1; }
+
+/* ── DISPOSICIÓN: en el teléfono, el globo arriba y el búho debajo ─── */
+.buho-dialogo {
+    position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(620px, calc(100% - 32px));
+    display: flex; flex-direction: column; align-items: flex-start;
+}
+.buho-figura {
+    position: relative; flex: none;
+    width: 112px; margin: 8px 0 0 6px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+/* En pantallas anchas: el búho a la izquierda y el globo a su lado */
+@media (min-width: 700px) {
+    .buho-dialogo { flex-direction: row-reverse; align-items: flex-end; bottom: clamp(24px, 9vh, 110px); }
+    .buho-figura { width: 176px; margin: 0 6px 0 0; }
+    .buho-globo { flex: 1 1 auto; margin-bottom: 122px; }
+}
+@media (min-width: 700px) and (max-height: 560px) {
+    .buho-dialogo { bottom: 14px; }
+    .buho-figura { width: 124px; }
+    .buho-globo { margin-bottom: 78px; }
+}
+
+/* ── EL GLOBO ──────────────────────────────────────────────────────── */
+.buho-globo {
+    position: relative; box-sizing: border-box; width: 100%;
+    background: var(--buho-papel); color: var(--buho-tinta);
+    border: 2px solid var(--buho-tinta); border-radius: 20px;
+    padding: 14px 18px 14px;
+    box-shadow: 0 4px 0 var(--buho-tinta), 0 22px 44px -14px rgba(0, 0, 0, .7);
+    transform-origin: 46px calc(100% + 14px);
+    opacity: 0; transform: translateY(14px) scale(.6);
+    transition: opacity .25s ease, transform .5s cubic-bezier(.34, 1.56, .64, 1);
+}
+.buho-escena.is-globo .buho-globo { opacity: 1; transform: none; }
+/* La colita del globo apunta al búho */
+.buho-globo::after {
+    content: ''; position: absolute; left: 40px; bottom: -11px;
+    width: 18px; height: 18px; box-sizing: border-box;
+    background: var(--buho-papel);
+    border: 2px solid var(--buho-tinta); border-top: 0; border-left: 0;
+    border-bottom-right-radius: 4px;
+    transform: rotate(45deg);
+}
+@media (min-width: 700px) {
+    .buho-globo { transform-origin: -14px calc(100% - 38px); }
+    .buho-globo::after { left: -11px; bottom: 30px; transform: rotate(135deg); }
+}
+/* Línea nueva: un pequeño "salto" del globo */
+.buho-globo.is-nueva { animation: buhoGloboNueva .35s ease-out; }
+@keyframes buhoGloboNueva { 40% { transform: scale(1.018); } }
+
+.buho-globo-cab {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding-bottom: 10px; margin-bottom: 12px;
+    border-bottom: 1px dashed rgba(27, 34, 64, .22);
+}
+.buho-marca { min-width: 0; }
+.buho-marca strong {
+    display: block; font-family: 'Playfair Display', Georgia, serif; font-weight: 900;
+    font-size: 17px; line-height: 1.1; letter-spacing: .5px; text-transform: uppercase;
+}
+.buho-marca strong span { color: var(--buho-rojo); }
+.buho-marca small {
+    display: block; margin-top: 3px;
+    font-size: 9.5px; font-weight: 700; letter-spacing: 1.1px; text-transform: uppercase;
+    color: var(--buho-tinta-suave);
+}
+
+/* Interruptor de voz */
+.buho-voz {
+    flex: none; display: inline-flex; align-items: center; gap: 7px;
+    min-height: 34px; padding: 4px 6px 4px 10px;
+    border: 1.5px solid rgba(27, 34, 64, .22); border-radius: 999px;
+    background: transparent; color: var(--buho-tinta);
+    font: 700 11px/1 'Libre Franklin', system-ui, sans-serif; letter-spacing: 1px; text-transform: uppercase;
+    cursor: pointer; transition: border-color .2s, background .2s;
+}
+.buho-voz:hover { background: rgba(27, 34, 64, .05); border-color: rgba(27, 34, 64, .4); }
+.buho-voz-icono { width: 16px; height: 16px; flex: none; opacity: .55; transition: opacity .2s; }
+.buho-voz-pista {
+    position: relative; flex: none; width: 32px; height: 20px; border-radius: 999px;
+    background: #c3c8dc; transition: background .25s;
+}
+.buho-voz-perilla {
+    position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+}
+.buho-voz[aria-checked="true"] .buho-voz-pista { background: var(--buho-azul); }
+.buho-voz[aria-checked="true"] .buho-voz-perilla { transform: translateX(12px); }
+.buho-voz[aria-checked="true"] .buho-voz-icono { opacity: 1; }
+
+/* La línea: el texto que se va escribiendo, encima de una copia invisible
+   de la línea entera que reserva el alto (así el globo no salta) */
+.buho-linea {
+    display: grid; margin: 0; min-height: 3.1em;
+    font-size: 16px; line-height: 1.6; white-space: pre-line; cursor: default;
+}
+.buho-linea > span { grid-area: 1 / 1; }
+.buho-linea-fantasma { visibility: hidden; }
+.buho-linea.is-titular { font-family: 'Playfair Display', Georgia, serif; font-weight: 700; font-size: 21px; line-height: 1.38; }
+.buho-globo.is-escribiendo .buho-linea { cursor: pointer; }
+.buho-globo.is-escribiendo .buho-linea-texto::after {
+    content: ''; display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -.12em;
+    background: var(--buho-rojo); animation: buhoCursor .8s steps(1) infinite;
+}
+@keyframes buhoCursor { 50% { opacity: 0; } }
+
+.buho-sr {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+.buho-fecha {
+    margin-top: 12px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--buho-tinta-suave);
+}
+
+.buho-pie { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.buho-puntos { display: flex; gap: 6px; margin-right: auto; }
+.buho-puntos span {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: rgba(27, 34, 64, .18); transition: background .3s, transform .3s;
+}
+.buho-puntos span.visto { background: rgba(26, 115, 232, .45); }
+.buho-puntos span.activo { background: var(--buho-azul); transform: scale(1.35); }
+
+.buho-btn {
+    min-height: 42px; padding: 11px 18px; border-radius: 999px;
+    border: 2px solid transparent;
+    font: 700 12px/1 'Libre Franklin', system-ui, sans-serif; letter-spacing: 1.2px; text-transform: uppercase;
+    cursor: pointer; transition: transform .18s, box-shadow .18s, background .2s, border-color .2s;
+}
+.buho-saltar { margin-left: auto; background: transparent; color: var(--buho-tinta-suave); border-color: rgba(27, 34, 64, .2); }
+.buho-saltar:hover { color: var(--buho-tinta); border-color: rgba(27, 34, 64, .45); }
+.buho-siguiente { background: var(--buho-azul); color: #fff; box-shadow: 0 3px 0 var(--buho-azul-osc); }
+.buho-siguiente::after { content: ' ›'; }
+.buho-siguiente.is-final::after { content: ''; }
+.buho-siguiente:hover { transform: translateY(-1px); box-shadow: 0 4px 0 var(--buho-azul-osc), 0 8px 16px -6px rgba(26, 115, 232, .7); }
+.buho-siguiente:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--buho-azul-osc); }
+.buho-voz:focus-visible, .buho-btn:focus-visible { outline: 3px solid var(--buho-tinta); outline-offset: 3px; }
+.buho-siguiente:focus-visible { box-shadow: 0 3px 0 var(--buho-azul-osc), 0 0 0 3px var(--buho-papel); }
+
+@media (max-width: 420px) {
+    .buho-globo { padding: 12px 14px; }
+    .buho-linea { font-size: 15px; }
+    .buho-linea.is-titular { font-size: 19px; }
+    .buho-btn { padding: 11px 14px; font-size: 11px; letter-spacing: 1px; }
+    .buho-voz-txt { display: none; }
+}
+
+/* ── EL BÚHO ───────────────────────────────────────────────────────── */
+.buho-svg { display: block; width: 100%; height: auto; overflow: visible; transform-origin: 50% 100%; }
+.buho-vuelo { will-change: transform; }
+.buho-sombra {
+    position: absolute; left: 6%; right: 6%; bottom: -5px; height: 12px; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(0, 0, 0, .5), transparent);
+    opacity: 0; transform: scale(.4); transition: opacity .4s, transform .4s;
+}
+.buho-escena.is-posado .buho-sombra { opacity: 1; transform: none; }
+
+/* Partes que se mueven: cada una gira desde su articulación */
+.buho-ave, .buho-ala, .buho-cabeza { transform-box: view-box; }
+.buho-ave { transform-origin: 100px 232px; }
+.buho-ala-i { transform-origin: 60px 130px; }
+.buho-ala-d { transform-origin: 140px 130px; }
+.buho-cabeza { transform-origin: 100px 122px; transition: transform .6s cubic-bezier(.34, 1.56, .64, 1); }
+.buho-pupila { transition: transform .22s ease-out; }
+.buho-parpado { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(0); }
+/* El pico: JS cambia --pico (0 cerrado … 1 abierto) */
+.buho-pico-inf { transform: translateY(calc(var(--pico, 0) * 7px)); transition: transform 70ms linear; }
+.buho-pico-sup { transform: translateY(calc(var(--pico, 0) * -1px)); transition: transform 70ms linear; }
+.buho-boca { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(calc(1 + var(--pico, 0) * 1.6)); transition: transform 70ms linear; }
+
+/* Posado: respira */
+.buho-escena.is-posado .buho-ave { animation: buhoRespira 3.4s ease-in-out infinite; }
+@keyframes buhoRespira { 50% { transform: translateY(-1px) scale(1.012, 1.024); } }
+
+/* ── ALTO CONTRASTE ────────────────────────────────────────────────── */
+body.alto-contraste .buho-escena { --buho-papel: #fff; --buho-tinta: #000; --buho-tinta-suave: #000; }
+body.alto-contraste .buho-fondo { background: rgba(0, 0, 0, .85); -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* ── SIN MOVIMIENTO: no vuela ni gira; aparece y se va con un fundido ─ */
+@media (prefers-reduced-motion: reduce) {
+    .buho-globo, .buho-globo.is-nueva { transform: none !important; animation: none; transition: opacity .25s ease; }
+    .buho-vuelo { opacity: 0; transition: opacity .3s ease; }
+    .buho-escena.is-posado .buho-vuelo { opacity: 1; }
+    .buho-sombra { transform: none; transition: opacity .3s; }
+    .buho-cabeza { transition: none; }
+    .buho-escena.is-posado .buho-ave { animation: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ETAPA 5 — EL RINCÓN DEL BÚHO
+   Abajo a la izquierda, siempre a mano. Por encima del botón de sonido
+   (9000) y de los botones flotantes (9999), pero debajo del menú lateral
+   (10010) y de las ventanas (11000+). Mientras llega volando pasa por
+   encima del diálogo de bienvenida que se desvanece (.is-llegando).
+
+   .buho-dock
+     .buho-dock-globo     lo que dice (texto que se escribe, acciones, × y voz)
+     .buho-dock-sr        lo mismo, para lectores de pantalla
+     .buho-dock-percha    aquí se pone la figura del búho (la misma del diálogo)
+     .buho-dock-tocar     botón invisible encima del búho
+     .buho-dock-min       minimizar
+   ════════════════════════════════════════════════════════════════════ */
+:root { --buho-dock-ancho: 84px; --buho-dock-izq: max(14px, env(safe-area-inset-left)); }
+@media (max-width: 700px) { :root { --buho-dock-ancho: 62px; --buho-dock-izq: max(8px, env(safe-area-inset-left)); } }
+
+.buho-dock {
+    position: fixed; z-index: 10000;
+    left: var(--buho-dock-izq); bottom: max(8px, env(safe-area-inset-bottom));
+    width: var(--buho-dock-ancho);
+    font-family: 'Libre Franklin', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    opacity: 0; transition: opacity .3s ease;
+}
+.buho-dock.is-visible { opacity: 1; }
+.buho-dock.is-llegando { z-index: 100000; }
+.buho-dock *, .buho-dock *::before, .buho-dock *::after { box-sizing: border-box; }
+
+/* El búho: la figura del diálogo, más pequeña */
+.buho-dock-percha { position: relative; transition: transform .5s cubic-bezier(.34, 1.3, .64, 1); }
+.buho-dock .buho-figura { width: 100%; margin: 0; cursor: pointer; }
+.buho-dock .buho-sombra { bottom: -3px; height: 9px; }
+.buho-dock.is-posado .buho-sombra { opacity: 1; transform: none; }
+.buho-dock.is-posado .buho-ave { animation: buhoRespira 3.4s ease-in-out infinite; }
+
+.buho-dock-tocar {
+    position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+    padding: 0; border: 0; border-radius: 45% 45% 18px 18px;
+    background: transparent; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.buho-dock-tocar:focus-visible { outline: 3px solid var(--buho-ambar); outline-offset: 2px; }
+
+.buho-dock-min {
+    position: absolute; top: -2px; right: -12px;
+    display: grid; place-items: center;
+    width: 26px; height: 26px; padding: 0;
+    border: 1.5px solid rgba(255, 255, 255, .22); border-radius: 50%;
+    background: rgba(22, 22, 28, .9); color: #e9e9ee;
+    box-shadow: 0 4px 12px -4px rgba(0, 0, 0, .7);
+    cursor: pointer; opacity: .55;
+    transition: opacity .2s, transform .2s, background .2s;
+}
+.buho-dock-min svg { width: 14px; height: 14px; }
+.buho-dock:hover .buho-dock-min, .buho-dock-min:focus-visible { opacity: 1; }
+.buho-dock-min:hover { background: var(--buho-azul); transform: translateY(1px); }
+.buho-dock-min:focus-visible { outline: 2px solid var(--buho-ambar); outline-offset: 2px; }
+@media (hover: none) { .buho-dock-min { opacity: .85; width: 30px; height: 30px; right: -14px; } }
+
+/* Minimizado: se esconde detrás del borde; solo asoman las orejas y los ojos */
+.buho-dock.is-min .buho-dock-percha { transform: translateY(64%); }
+.buho-dock.is-min .buho-dock-tocar { top: 60%; bottom: -12px; }
+.buho-dock.is-min .buho-sombra { opacity: 0; }
+
+/* El botón de sonido de la biblioteca se corre a la derecha del búho */
+html.buho-anclado .biblio-sonido { left: calc(var(--buho-dock-izq) + var(--buho-dock-ancho) + 18px); }
+
+/* ── EL GLOBO DEL RINCÓN ─────────────────────────────────────────── */
+.buho-dock-globo {
+    position: absolute; left: 0; bottom: calc(100% + 12px);
+    display: flex; align-items: flex-start; gap: 8px;
+    width: max-content; min-width: 220px; max-width: min(340px, calc(100vw - var(--buho-dock-izq) - 12px));
+    padding: 12px 10px 12px 15px;
+    background: var(--buho-papel); color: var(--buho-tinta);
+    border: 2px solid var(--buho-tinta); border-radius: 18px;
+    box-shadow: 0 4px 0 var(--buho-tinta), 0 18px 36px -14px rgba(0, 0, 0, .7);
+    transform-origin: 30px calc(100% + 12px);
+    opacity: 0; transform: translateY(10px) scale(.7);
+    transition: opacity .2s ease, transform .45s cubic-bezier(.34, 1.56, .64, 1);
+}
+.buho-dock.is-globo .buho-dock-globo { opacity: 1; transform: none; }
+.buho-dock-globo::after {
+    content: ''; position: absolute; left: 24px; bottom: -10px;
+    width: 16px; height: 16px;
+    background: var(--buho-papel);
+    border: 2px solid var(--buho-tinta); border-top: 0; border-left: 0;
+    border-bottom-right-radius: 4px;
+    transform: rotate(45deg);
+}
+.buho-dock-cuerpo { flex: 1 1 auto; min-width: 0; }
+.buho-dock-linea.buho-linea { min-height: 0; font-size: 14.5px; line-height: 1.5; }
+.buho-dock-acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.buho-dock-accion {
+    min-height: 32px; padding: 6px 12px;
+    border: 1.5px solid var(--buho-azul); border-radius: 999px;
+    background: rgba(26, 115, 232, .08); color: var(--buho-azul-osc);
+    font: 700 12px/1.2 'Libre Franklin', system-ui, sans-serif;
+    cursor: pointer; text-align: left;
+    transition: background .2s, color .2s, transform .15s;
+}
+.buho-dock-accion:hover { background: var(--buho-azul); color: #fff; }
+.buho-dock-accion:active { transform: translateY(1px); }
+.buho-dock-accion:focus-visible { outline: 3px solid var(--buho-tinta); outline-offset: 2px; }
+.buho-dock-controles { flex: none; display: flex; flex-direction: column; gap: 4px; margin: -4px -2px 0 0; }
+.buho-dock-icono {
+    display: grid; place-items: center;
+    width: 28px; height: 28px; padding: 0;
+    border: 0; border-radius: 50%;
+    background: transparent; color: var(--buho-tinta-suave);
+    cursor: pointer; transition: background .2s, color .2s;
+}
+.buho-dock-icono svg { width: 15px; height: 15px; }
+.buho-dock-icono:hover { background: rgba(27, 34, 64, .08); color: var(--buho-tinta); }
+.buho-dock-icono:focus-visible { outline: 2px solid var(--buho-tinta); outline-offset: 1px; }
+.buho-dock-voz .buho-voz-icono { width: 16px; height: 16px; opacity: .45; }
+.buho-dock-voz[aria-checked="true"] { color: var(--buho-azul); }
+.buho-dock-voz[aria-checked="true"] .buho-voz-icono { opacity: 1; }
+@media (max-width: 420px) { .buho-dock-linea.buho-linea { font-size: 14px; } }
+
+/* ════════════════════════════════════════════════════════════════════
+   ETAPA 5 — "PREGÚNTALE AL BÚHO" (encima de las pestañas de la biblioteca)
+   ════════════════════════════════════════════════════════════════════ */
+.buho-pregunta {
+    --bp-borde: rgba(255, 255, 255, .1);
+    --bp-fondo: rgba(255, 255, 255, .04);
+    --bp-texto: #e9e9ee;
+    --bp-suave: #9c9cad;
+    --bp-ambar: #f6b021;
+    width: min(760px, 100%);
+    margin: 0 auto 6px;
+    display: flex; flex-direction: column; gap: 10px;
+    font-family: 'Libre Franklin', system-ui, sans-serif;
+}
+.buho-pregunta * { box-sizing: border-box; }
+.buho-pregunta-fila { display: flex; gap: 8px; }
+.buho-pregunta-campo {
+    position: relative; flex: 1 1 auto; min-width: 0;
+    display: flex; align-items: center; gap: 8px;
+    height: 54px; padding: 0 12px 0 8px;
+    border: 1.5px solid var(--bp-borde); border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .025));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05), 0 14px 30px -18px rgba(0, 0, 0, .8);
+    cursor: text;
+    transition: border-color .25s, box-shadow .25s;
+}
+.buho-pregunta-campo:focus-within {
+    border-color: rgba(246, 176, 33, .75);
+    box-shadow: 0 0 0 4px rgba(246, 176, 33, .14), 0 14px 30px -18px rgba(0, 0, 0, .8);
+}
+.buho-pregunta-cara { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(246, 176, 33, .12); }
+.buho-pregunta-cara .buho-cara { width: 32px; height: auto; transition: transform .35s cubic-bezier(.34, 1.56, .64, 1); }
+.buho-pregunta-campo:focus-within .buho-cara { transform: rotate(-9deg) scale(1.06); }
+.buho-pregunta-campo input {
+    flex: 1 1 auto; min-width: 0; height: 100%;
+    border: 0; outline: 0; background: transparent;
+    color: var(--bp-texto); font: 500 16px/1.2 'Libre Franklin', system-ui, sans-serif;
+}
+.buho-pregunta-campo input::placeholder { color: #7d7d90; }
+.buho-pregunta-campo input::-webkit-search-cancel-button { filter: invert(.7); cursor: pointer; }
+.buho-pregunta-atajo {
+    flex: none; display: inline-grid; place-items: center;
+    min-width: 22px; height: 22px; padding: 0 5px;
+    border: 1px solid #3a3a46; border-bottom-width: 2px; border-radius: 5px;
+    color: #9c9cad; font: 700 11px/1 'Libre Franklin', sans-serif;
+}
+.buho-pregunta-campo:focus-within .buho-pregunta-atajo { display: none; }
+@media (hover: none) { .buho-pregunta-atajo { display: none; } }
+.buho-pregunta-ir {
+    flex: none; display: inline-flex; align-items: center; gap: 8px;
+    height: 54px; padding: 0 22px;
+    border: 0; border-radius: 999px;
+    background: linear-gradient(135deg, #1a73e8, #0d47a1); color: #fff;
+    font: 800 12px/1 'Libre Franklin', sans-serif; letter-spacing: 1.2px; text-transform: uppercase;
+    box-shadow: 0 10px 22px -10px rgba(26, 115, 232, .9);
+    cursor: pointer; transition: transform .2s, box-shadow .2s, filter .2s;
+}
+.buho-pregunta-ir:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.buho-pregunta-ir:active { transform: translateY(1px); }
+.buho-pregunta-ir:focus-visible { outline: 3px solid var(--bp-ambar); outline-offset: 3px; }
+
+.buho-pregunta-filtros { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
+.buho-pregunta-menu {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 36px; padding: 0 4px 0 12px;
+    border: 1px solid var(--bp-borde); border-radius: 999px; background: var(--bp-fondo);
+    color: var(--bp-suave); font: 700 10px/1 'Libre Franklin', sans-serif; letter-spacing: 1.2px; text-transform: uppercase;
+}
+.buho-pregunta-menu:focus-within { border-color: rgba(246, 176, 33, .7); }
+.buho-pregunta-menu select {
+    height: 100%; max-width: 46vw; padding: 0 26px 0 4px;
+    border: 0; outline: 0;
+    background: transparent no-repeat right 8px center;
+    background-size: 10px 10px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M1 3l4 4 4-4' fill='none' stroke='%23f6b021' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+    color: var(--bp-texto); font: 600 13px/1 'Libre Franklin', sans-serif; letter-spacing: 0; text-transform: none;
+    -webkit-appearance: none; appearance: none; cursor: pointer;
+}
+.buho-pregunta-menu select option { background: #1e1e26; color: #e9e9ee; }
+.buho-pregunta-temas {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; max-width: 100%;
+    padding: 2px;
+}
+.buho-pregunta-temas::-webkit-scrollbar { display: none; }
+.buho-tema {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+    height: 34px; padding: 0 10px 0 11px;
+    border: 1px solid var(--bp-borde); border-radius: 999px; background: transparent;
+    color: var(--bp-suave); font: 700 12px/1 'Libre Franklin', sans-serif;
+    cursor: pointer; transition: color .2s, background .2s, border-color .2s;
+}
+.buho-tema i { color: var(--bp-ambar); font-size: 11px; }
+.buho-tema small { padding: 2px 6px; border-radius: 999px; background: rgba(255, 255, 255, .07); font-size: 10px; }
+.buho-tema:hover { color: var(--bp-texto); border-color: rgba(246, 176, 33, .5); }
+.buho-tema.is-activo { color: #1b2240; background: var(--bp-ambar); border-color: var(--bp-ambar); }
+.buho-tema.is-activo i { color: #1b2240; }
+.buho-tema.is-activo small { background: rgba(27, 34, 64, .15); }
+.buho-tema:focus-visible { outline: 2px solid var(--bp-ambar); outline-offset: 2px; }
+
+@media (max-width: 700px) {
+    .buho-pregunta { gap: 8px; }
+    .buho-pregunta-campo { height: 48px; padding: 0 10px 0 5px; }
+    .buho-pregunta-cara { width: 36px; height: 36px; }
+    .buho-pregunta-cara .buho-cara { width: 28px; }
+    .buho-pregunta-campo input { font-size: 16px; }      /* 16 px: iOS no hace zoom al enfocar */
+    .buho-pregunta-ir { width: 48px; height: 48px; padding: 0; justify-content: center; }
+    .buho-pregunta-ir span { display: none; }
+    .buho-pregunta-ir i { font-size: 16px; }
+    .buho-pregunta-filtros { justify-content: flex-start; }
+    /* Sección y fecha lado a lado; la etiqueta queda solo para lectores de pantalla */
+    .buho-pregunta-menu { flex: 1 1 0; min-width: 0; padding-left: 8px; }
+    .buho-pregunta-menu > span {
+        position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+    .buho-pregunta-menu select { flex: 1 1 auto; min-width: 0; max-width: none; text-overflow: ellipsis; }
+    /* En el teléfono, los temas en una sola fila que se desliza */
+    .buho-pregunta-temas {
+        width: 100%; flex-wrap: nowrap; justify-content: flex-start;
+        overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+    }
+    /* El borde se desvanece del lado donde quedan más temas (lo marca plec-buho-guia.js) */
+    .buho-pregunta-temas.is-mas-der { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 40px), transparent); }
+    .buho-pregunta-temas.is-mas-izq { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px); mask-image: linear-gradient(90deg, transparent, #000 40px); }
+    .buho-pregunta-temas.is-mas-izq.is-mas-der { -webkit-mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(90deg, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
+}
+
+/* Pantallas táctiles: blancos más grandes para el dedo (Etapa 6) */
+@media (pointer: coarse) {
+    .buho-tema { height: 40px; }
+    .buho-dock-icono { width: 36px; height: 36px; }
+    .buho-dock-accion { min-height: 40px; }
+    .buho-sugerencia { min-height: 40px; }
+}
+
+/* Colores forzados (alto contraste de Windows): ahí no se dibujan las sombras con
+   que se marca el foco del campo, así que se usa un contorno del color del sistema */
+@media (forced-colors: active) {
+    .buho-pregunta-campo:focus-within { outline: 3px solid Highlight; outline-offset: 2px; }
+    .buho-siguiente:focus-visible, .buho-dock-tocar:focus-visible { outline: 3px solid Highlight; }
+    .buho-voz[aria-checked="true"] .buho-voz-pista { background: Highlight; }
+}
+
+/* Sin resultados: el búho y sus ideas, dentro del estante de respuestas */
+.buho-vacio { display: flex; align-items: flex-start; gap: 14px; max-width: 720px; }
+.buho-vacio-cara .buho-cara { width: 56px; height: auto; animation: buhoDuda 2.8s ease-in-out infinite; transform-origin: 50% 90%; }
+@keyframes buhoDuda { 0%, 100% { transform: rotate(0); } 30% { transform: rotate(-9deg); } 60% { transform: rotate(5deg); } }
+.buho-vacio-textos p { margin: 4px 0 12px; font-size: 15px; line-height: 1.55; color: #d6d6e0; }
+.buho-sugerencias { display: flex; flex-wrap: wrap; gap: 8px; }
+.buho-sugerencia {
+    display: inline-flex; align-items: center; gap: 8px;
+    min-height: 36px; padding: 6px 14px;
+    border: 1px solid rgba(246, 176, 33, .45); border-radius: 999px;
+    background: rgba(246, 176, 33, .08); color: #f4f4f8;
+    font: 700 12.5px/1.2 'Libre Franklin', sans-serif; text-align: left;
+    cursor: pointer; transition: background .2s, transform .15s;
+}
+.buho-sugerencia i { color: #f6b021; }
+.buho-sugerencia small { padding: 2px 7px; border-radius: 999px; background: rgba(255, 255, 255, .1); font-size: 10.5px; }
+.buho-sugerencia:hover { background: rgba(246, 176, 33, .2); }
+.buho-sugerencia:active { transform: translateY(1px); }
+.buho-sugerencia:focus-visible { outline: 2px solid #f6b021; outline-offset: 2px; }
+
+/* ── MODO CLARO Y ALTO CONTRASTE ─────────────────────────────────── */
+body.modo-claro .buho-pregunta { --bp-borde: rgba(0, 0, 0, .14); --bp-fondo: rgba(0, 0, 0, .03); --bp-texto: #15151c; --bp-suave: #5f5f70; }
+body.modo-claro .buho-pregunta-campo { background: #fff; box-shadow: 0 10px 24px -16px rgba(0, 0, 0, .35); }
+body.modo-claro .buho-pregunta-campo input::placeholder { color: #85859a; }
+body.modo-claro .buho-pregunta-campo input::-webkit-search-cancel-button { filter: none; }
+body.modo-claro .buho-pregunta-atajo { border-color: #c8c8d2; color: #555; }
+body.modo-claro .buho-pregunta-menu select option { background: #fff; color: #15151c; }
+body.modo-claro .buho-tema small { background: rgba(0, 0, 0, .06); }
+body.modo-claro .buho-vacio-textos p { color: #2a2a35; }
+body.modo-claro .buho-sugerencia { color: #15151c; background: rgba(246, 176, 33, .14); border-color: rgba(200, 130, 0, .5); }
+body.modo-claro .buho-sugerencia i { color: #b77700; }
+body.modo-claro .buho-dock-min { background: #fff; color: #1b2240; border-color: rgba(0, 0, 0, .15); }
+body.alto-contraste .buho-dock { --buho-papel: #fff; --buho-tinta: #000; --buho-tinta-suave: #000; }
+body.alto-contraste .buho-pregunta-campo, body.alto-contraste .buho-pregunta-menu, body.alto-contraste .buho-tema { border: 2px solid #fff; }
+
+/* ── SIN MOVIMIENTO: el rincón sin vuelos ni rebotes ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .buho-dock .buho-vuelo { opacity: 0; transition: opacity .3s ease; }
+    .buho-dock.is-posado .buho-vuelo { opacity: 1; }
+    .buho-dock.is-posado .buho-ave { animation: none; }
+    .buho-dock-percha { transition: none; }
+    .buho-dock-globo { transform: none !important; transition: opacity .2s ease; }
+    .buho-pregunta-cara .buho-cara, .buho-pregunta-campo:focus-within .buho-cara { transition: none; transform: none; }
+    .buho-vacio-cara .buho-cara { animation: none; }
+}
+
+@media print { .buho-dock, .buho-pregunta { display: none !important; } }
