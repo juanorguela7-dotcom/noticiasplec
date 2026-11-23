@@ -1,10 +1,6 @@
 <?php
-session_start();
-// Solo un administrador con sesión iniciada puede publicar ediciones impresas.
-if (!isset($_SESSION['admin_id'])) {
-    header("Location: login.php");
-    exit();
-}
+// Solo un administrador con sesión iniciada (y no vencida) puede publicar ediciones impresas.
+require __DIR__ . '/admin_comun.php';
 include("conexion.php");
 
 function volver_con_error($msg) {
@@ -16,6 +12,11 @@ function volver_con_error($msg) {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header("Location: admin_impresos.php");
     exit();
+}
+
+// Si los archivos superan post_max_size, PHP vacía $_POST y $_FILES: se explica en vez de "sesión expirada"
+if (plec_admin_post_demasiado_grande()) {
+    volver_con_error('Los archivos pesan más de ' . plec_admin_mb(plec_admin_limite_subida()) . '. Comprime el PDF e inténtalo de nuevo.');
 }
 
 if (!isset($_POST['csrf']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf'])) {

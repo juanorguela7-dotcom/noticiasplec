@@ -1,81 +1,118 @@
 <?php
-session_start();
-if (!isset($_SESSION['admin_id'])) {
-    header("Location: login.php");
-    exit();
-}
-if (!isset($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
+require __DIR__ . '/admin_comun.php';          // sesión, CSRF, utilidades del panel
+include("conexion.php");
+require __DIR__ . '/admin_layout.php';
+
 $mensaje = $_SESSION['mensaje_impreso'] ?? null;
 unset($_SESSION['mensaje_impreso']);
+
+$ediciones = [];
+try {
+    $res = mysqli_query($conn, "SELECT id, edicion_nro, fecha, portada, archivo_pdf FROM impresos ORDER BY fecha DESC, id DESC LIMIT 6");
+    $ediciones = $res ? mysqli_fetch_all($res, MYSQLI_ASSOC) : [];
+} catch (Throwable $e) {
+    error_log('Noticias PLEC - lista de impresos: ' . $e->getMessage());
+}
+$limite_txt = plec_admin_mb(plec_admin_limite_subida());
+
+plec_admin_cabecera('Ediciones impresas', 'impresos', ['stream_activo' => plec_admin_stream($conn)['activo']]);
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Admin - Subir Edición Impresa</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
-        .container { max-width: 500px; margin: 50px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        h2 { color: #1a73e8; text-align: center; margin-bottom: 25px; }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; font-weight: bold; margin-bottom: 8px; color: #333; }
-        input[type="text"], input[type="date"], input[type="file"] {
-            width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 14px;
-        }
-        button {
-            width: 100%; background: #1a73e8; color: white; border: none; padding: 15px;
-            border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s;
-        }
-        button:hover { background: #1557b0; }
-        .footer-link { text-align: center; margin-top: 20px; }
-        .footer-link a { color: #666; text-decoration: none; font-size: 14px; }
-        .alerta { padding: 12px 14px; border-radius: 8px; margin-bottom: 18px; font-size: 14px; }
-        .alerta.error { background: #fdecea; color: #b3261e; }
-        .alerta.ok { background: #e6f4ea; color: #1e7e34; }
-    </style>
-</head>
-<body>
 
-<div class="container">
-    <h2><i class="fas fa-newspaper"></i> Nueva Edición Impresa</h2>
-
-    <?php if ($mensaje): ?>
-        <div class="alerta <?php echo $mensaje['tipo'] === 'ok' ? 'ok' : 'error'; ?>"><?php echo htmlspecialchars($mensaje['texto']); ?></div>
-    <?php endif; ?>
-
-    <form action="guardar_impreso.php" method="POST" enctype="multipart/form-data">
-        <input type="hidden" name="csrf" value="<?php echo htmlspecialchars($_SESSION['csrf_token']); ?>">
-        <div class="form-group">
-            <label>Número de Edición:</label>
-            <input type="text" name="edicion_nro" placeholder="Ejemplo: 105" maxlength="20" required>
-        </div>
-
-        <div class="form-group">
-            <label>Fecha de Publicación:</label>
-            <input type="date" name="fecha" required>
-        </div>
-
-        <div class="form-group">
-            <label>Imagen de Portada (JPG, PNG o WEBP):</label>
-            <input type="file" name="portada" accept="image/jpeg,image/png,image/webp" required>
-        </div>
-
-        <div class="form-group">
-            <label>Archivo del Periódico (PDF):</label>
-            <input type="file" name="archivo_pdf" accept="application/pdf" required>
-        </div>
-
-        <button type="submit">PUBLICAR EDICIÓN</button>
-    </form>
-
-    <div class="footer-link">
-        <a href="admin.php">← Volver al panel</a> &nbsp;·&nbsp; <a href="index.php">Ver el portal</a>
+<header class="pa-encabezado">
+    <div>
+        <a class="pa-volver" href="admin.php"><i class="fas fa-arrow-left"></i> Volver al panel</a>
+        <h1 class="pa-h1">Ediciones impresas</h1>
+        <p class="pa-muted mb-0 mt-1">Sube el PDF del periódico y su portada. Aparece en la sección de impresos del sitio.</p>
     </div>
+    <div class="pa-encabezado-acciones">
+        <a class="btn pa-btn pa-btn-sec" href="impresos.php" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Ver impresos en el sitio</a>
+    </div>
+</header>
+
+<div class="pa-impresos-grid">
+    <section class="pa-card pa-acento-general">
+        <h2 class="pa-h2 mb-3">Nueva edición</h2>
+
+        <?php if ($mensaje): ?>
+            <div class="<?php echo ($mensaje['tipo'] ?? '') === 'ok' ? 'pa-form-ok' : 'pa-form-error'; ?> mt-0 mb-3" role="alert">
+                <i class="fas <?php echo ($mensaje['tipo'] ?? '') === 'ok' ? 'fa-circle-check' : 'fa-triangle-exclamation'; ?>"></i>
+                <?php echo plec_e($mensaje['texto'] ?? ''); ?>
+            </div>
+        <?php endif; ?>
+
+        <form action="guardar_impreso.php" method="POST" enctype="multipart/form-data" class="pa-impreso-form" data-pa-impreso>
+            <input type="hidden" name="csrf" value="<?php echo plec_e(plec_admin_csrf()); ?>">
+            <div class="row g-3">
+                <div class="col-sm-6 pa-campo">
+                    <label class="pa-label" for="imp-numero">Número de edición <span class="pa-req" aria-hidden="true">*</span></label>
+                    <input type="text" id="imp-numero" name="edicion_nro" class="form-control" placeholder="Ej: 105" maxlength="20" required>
+                </div>
+                <div class="col-sm-6 pa-campo">
+                    <label class="pa-label" for="imp-fecha">Fecha de publicación <span class="pa-req" aria-hidden="true">*</span></label>
+                    <input type="date" id="imp-fecha" name="fecha" class="form-control" value="<?php echo (new DateTime('now', new DateTimeZone('America/Bogota')))->format('Y-m-d'); ?>" required>
+                </div>
+                <div class="col-12 pa-campo">
+                    <label class="pa-label" for="imp-portada"><i class="fas fa-image"></i> Imagen de portada <span class="pa-req" aria-hidden="true">*</span></label>
+                    <input type="file" id="imp-portada" name="portada" class="form-control" accept="image/jpeg,image/png,image/webp" required>
+                    <div class="pa-ayuda-fila"><span>JPG, PNG o WEBP. Es la miniatura que se ve en el sitio.</span></div>
+                </div>
+                <div class="col-12 pa-campo">
+                    <label class="pa-label" for="imp-pdf"><i class="fas fa-file-pdf"></i> Archivo del periódico (PDF) <span class="pa-req" aria-hidden="true">*</span></label>
+                    <input type="file" id="imp-pdf" name="archivo_pdf" class="form-control" accept="application/pdf" required>
+                    <div class="pa-ayuda-fila"><span>Entre los dos archivos, máximo <?php echo plec_e($limite_txt); ?>.</span></div>
+                </div>
+            </div>
+            <div class="pa-form-error" role="alert" hidden></div>
+            <div class="pa-form-pie">
+                <span></span>
+                <div class="pa-form-botones">
+                    <button type="submit" class="btn pa-btn pa-btn-acento"><i class="fas fa-paper-plane"></i> <span>Publicar edición</span></button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="pa-card">
+        <h2 class="pa-h2 mb-3">Últimas ediciones</h2>
+        <?php if (!$ediciones): ?>
+            <div class="pa-vacio"><i class="fas fa-file-pdf"></i><b>Aún no hay ediciones</b><span>La primera que subas aparecerá aquí.</span></div>
+        <?php else: ?>
+            <ul class="pa-ediciones">
+                <?php foreach ($ediciones as $ed): ?>
+                    <li>
+                        <img src="<?php echo plec_e($ed['portada']); ?>" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+                        <div>
+                            <b>Edición #<?php echo plec_e($ed['edicion_nro']); ?></b>
+                            <small><?php echo plec_e(date('d/m/Y', strtotime($ed['fecha']))); ?></small>
+                        </div>
+                        <a class="pa-accion" href="<?php echo plec_e($ed['archivo_pdf']); ?>" target="_blank" rel="noopener" title="Abrir PDF" aria-label="Abrir el PDF de la edición <?php echo plec_e($ed['edicion_nro']); ?>"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
 </div>
 
-</body>
-</html>
+<?php
+// Revisa el peso antes de subir: si pasa el límite de PHP, el servidor descartaría todo sin avisar
+$limite = (int)plec_admin_limite_subida();
+plec_admin_pie([<<<JS
+(function () {
+    var f = document.querySelector('[data-pa-impreso]');
+    if (!f) return;
+    f.addEventListener('submit', function (e) {
+        var total = 0;
+        f.querySelectorAll('input[type=file]').forEach(function (i) { if (i.files[0]) total += i.files[0].size; });
+        var caja = f.querySelector('.pa-form-error');
+        if (total > $limite) {
+            e.preventDefault();
+            caja.textContent = 'Los archivos pesan ' + (total / 1048576).toFixed(1) + ' MB y el máximo es $limite_txt. Comprime el PDF e inténtalo de nuevo.';
+            caja.hidden = false;
+            return;
+        }
+        var b = f.querySelector('button[type=submit]');
+        b.disabled = true;
+        b.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo…';
+    });
+})();
+JS]);

@@ -1,229 +1,258 @@
 <?php
-session_start();
-if (!isset($_SESSION['admin_id'])) {
-    header("Location: login.php");
-    exit();
-}
+require __DIR__ . '/admin_comun.php';          // sesión, CSRF, utilidades del panel
 include("conexion.php");
+include_once __DIR__ . '/mapa_datos.php';      // ubicación de la noticia en el mapa vivo
+require __DIR__ . '/admin_layout.php';
 
 // ── CARGAR NOTICIA ──
-if (isset($_GET['id'])) {
-    $id = intval($_GET['id']);
-    $resultado = mysqli_query($conn, "SELECT * FROM noticias WHERE id = $id");
-    $n = mysqli_fetch_assoc($resultado);
-    if (!$n) { die("Noticia no encontrada."); }
-} else {
-    header("Location: admin.php");
+$id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+$n  = null;
+if ($id > 0) {
+    $stmt = mysqli_prepare($conn, "SELECT * FROM noticias WHERE id = ?");
+    mysqli_stmt_bind_param($stmt, "i", $id);
+    mysqli_stmt_execute($stmt);
+    $n = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+    mysqli_stmt_close($stmt);
+}
+if (!$n) {
+    if (plec_admin_es_ajax()) plec_admin_json(['ok' => false, 'mensaje' => 'Esa publicación ya no existe.'], 404);
+    plec_admin_flash('danger', 'Esa publicación ya no existe.');
+    header("Location: admin.php#publicaciones");
     exit();
 }
+
+$error = null;
+$campo_error = null;
+$valores = $n;   // lo que muestra el formulario (si hay error, lo que se escribió)
 
 // ── GUARDAR CAMBIOS ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $id          = intval($_POST['id']);
-    $titulo      = mysqli_real_escape_string($conn, trim($_POST['titulo']));
-    $desc        = mysqli_real_escape_string($conn, trim($_POST['descripcion']));
-    $cont        = mysqli_real_escape_string($conn, trim($_POST['contenido']));
-    $cat         = intval($_POST['categoria_id']);
-    $es_especial = isset($_POST['es_especial']) ? 1 : 0;
-    $video_url   = mysqli_real_escape_string($conn, trim($_POST['video_url'] ?? ''));
+    $fallar = function (string $mensaje, ?string $campo = null, array $extra = []) use (&$error, &$campo_error) {
+        if (plec_admin_es_ajax()) {
+            plec_admin_json(array_merge(['ok' => false, 'mensaje' => $mensaje, 'campo' => $campo], $extra), 422);
+        }
+        $error = $mensaje;
+        $campo_error = $campo;
+    };
 
-    // Imagen: si suben una nueva, procesarla
-    $img_sql = "";
-    if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
-        $ext_ok = ['jpg','jpeg','png','gif','webp'];
-        $ext = strtolower(pathinfo($_FILES['imagen']['name'], PATHINFO_EXTENSION));
-        if (in_array($ext, $ext_ok)) {
-            $archivo = uniqid('noticia_', true) . '.' . $ext;
-            $destino = 'img/' . $archivo;
-            if (move_uploaded_file($_FILES['imagen']['tmp_name'], $destino)) {
-                $ruta = mysqli_real_escape_string($conn, 'img/' . $archivo);
-                $img_sql = ", imagen='$ruta'";
+    // Antes, un error mostraba otra vez lo guardado y se perdía lo editado
+    $valores = array_merge($n, [
+        'titulo'          => (string)($_POST['titulo'] ?? $n['titulo']),
+        'contenido'       => (string)($_POST['contenido'] ?? $n['contenido']),
+        'categoria_id'    => (int)($_POST['categoria'] ?? $n['categoria_id']),
+        'es_especial'     => !empty($_POST['es_especial']) ? 1 : 0,
+        'video_url'       => (string)($_POST['video_url'] ?? ''),
+        'departamento_id' => (int)($_POST['departamento_id'] ?? 0) ?: null,
+        'municipio_id'    => (int)($_POST['municipio_id'] ?? 0) ?: null,
+    ]);
+
+    if (plec_admin_post_demasiado_grande()) {
+        $valores = $n;
+        $fallar('La imagen pesa más de ' . plec_admin_mb(plec_admin_limite_subida()) . '. Usa una más liviana.', 'imagen');
+    } elseif (!plec_admin_csrf_valido($_POST['csrf'] ?? null)) {
+        $fallar('La página estaba desactualizada. Vuelve a intentarlo.', null, ['motivo' => 'csrf', 'csrf' => plec_admin_csrf()]);
+    } else {
+        [$datos, $err] = plec_admin_validar_campos($_POST, true);
+        $cat           = (int)($_POST['categoria'] ?? 0);
+        $es_especial   = !empty($_POST['es_especial']) ? 1 : 0;
+        $quitar_imagen = !empty($_POST['quitar_imagen']);
+
+        if ($err) {
+            $fallar($err['mensaje'], $err['campo']);
+        } elseif (!plec_admin_categoria_existe($conn, $cat)) {
+            $fallar('Elige una categoría.', 'categoria');
+        } else {
+            $sube_imagen = isset($_FILES['imagen']) && ($_FILES['imagen']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+            $queda_sin_foto = ($quitar_imagen || empty($n['imagen'])) && !$sube_imagen;
+            if ($cat === PLEC_CAT_OPINION && $queda_sin_foto) {
+                $fallar('Una columna de opinión necesita la foto del columnista.', 'imagen');
+            } else {
+                [$ruta, $err_img] = plec_admin_subir_imagen('imagen');
+                if ($err_img) {
+                    $fallar($err_img, 'imagen');
+                } else {
+                    // Consulta preparada; la imagen solo cambia si subieron otra o pidieron quitarla
+                    $sets    = "titulo = ?, contenido = ?, categoria_id = ?, es_especial = ?, video_url = ?";
+                    $tipos   = "ssiis";
+                    $params  = [$datos['titulo'], $datos['contenido'], $cat, $es_especial, $datos['video_url']];
+                    $cambia_imagen = ($ruta !== null) || $quitar_imagen;
+                    if ($cambia_imagen) {
+                        $sets .= ", imagen = ?";
+                        $tipos .= "s";
+                        $params[] = $ruta;   // null si solo la quitaron
+                    }
+                    try {
+                        if (plec_mapa_disponible($conn)) {
+                            [$departamento_id, $municipio_id] = plec_mapa_leer_post($conn, $_POST);
+                            $sets .= ", departamento_id = ?, municipio_id = ?";
+                            $tipos .= "ii";
+                            $params[] = $departamento_id;
+                            $params[] = $municipio_id;
+                        }
+                        $tipos .= "i";
+                        $params[] = $id;
+                        $stmt = mysqli_prepare($conn, "UPDATE noticias SET $sets WHERE id = ?");
+                        mysqli_stmt_bind_param($stmt, $tipos, ...$params);
+                        mysqli_stmt_execute($stmt);
+                        mysqli_stmt_close($stmt);
+                    } catch (Throwable $e) {
+                        error_log('Noticias PLEC - error al editar noticia: ' . $e->getMessage());
+                        if ($ruta) @unlink(__DIR__ . '/' . $ruta);
+                        $fallar('No se pudieron guardar los cambios. Inténtalo de nuevo en un momento.');
+                        $cambia_imagen = false;
+                        $ruta = false;
+                    }
+                    if ($ruta !== false && $error === null) {
+                        if ($cambia_imagen) plec_admin_borrar_imagen_huerfana($conn, $n['imagen']);
+                        plec_admin_flash('success', 'Cambios guardados.', ['enlace' => 'noticia.php?id=' . $id]);
+                        $destino = 'admin.php?nueva=' . $id . '#publicaciones';
+                        if (plec_admin_es_ajax()) {
+                            plec_admin_json(['ok' => true, 'mensaje' => 'Cambios guardados.', 'redirigir' => $destino]);
+                        }
+                        header("Location: " . $destino);
+                        exit();
+                    }
+                }
             }
         }
     }
-
-    $video_sql = !empty($video_url) ? ", video_url='$video_url'" : ", video_url=NULL";
-    $sql = "UPDATE noticias SET titulo='$titulo', descripcion='$desc', contenido='$cont', categoria_id=$cat, es_especial=$es_especial$video_sql $img_sql WHERE id=$id";
-    if (mysqli_query($conn, $sql)) {
-        $_SESSION['mensaje'] = ['tipo' => 'success', 'texto' => '✅ Noticia actualizada correctamente.'];
-        header("Location: admin.php");
-        exit();
-    } else {
-        $error = mysqli_error($conn);
-    }
 }
 
-// ── OBTENER NOMBRE DE CATEGORÍA ACTUAL ──
-$cat_actual = mysqli_fetch_assoc(mysqli_query($conn, "SELECT nombre FROM categorias WHERE id = " . intval($n['categoria_id'])));
-$nombre_cat_actual = $cat_actual ? $cat_actual['nombre'] : 'Sin categoría';
+// ── DATOS PARA MOSTRAR ──
+$res_c = mysqli_query($conn, "SELECT id, nombre FROM categorias ORDER BY nombre ASC");
+$categorias = $res_c ? mysqli_fetch_all($res_c, MYSQLI_ASSOC) : [];
 
-// ── TIPO DE NOTICIA ──
-if ($n['es_especial'] == 1) {
-    $tipo_badge = '<span style="background:#ffcc00; color:#000; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;"><i class="fas fa-star me-1"></i>HISTORIA ESPECIAL (Revista)</span>';
-} elseif ($n['categoria_id'] == 15) {
-    $tipo_badge = '<span style="background:#4a148c; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;"><i class="fas fa-feather-alt me-1"></i>EDITORIAL</span>';
-} elseif ($n['categoria_id'] == 13) {
-    $tipo_badge = '<span style="background:#00796b; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;"><i class="fas fa-user-tie me-1"></i>COLUMNA DE OPINIÓN</span>';
-} else {
-    $tipo_badge = '<span style="background:#1a73e8; color:#fff; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:bold;"><i class="fas fa-newspaper me-1"></i>NOTICIA GENERAL</span>';
+$cat_actual = (int)$valores['categoria_id'];
+if ((int)$valores['es_especial'] === 1)              { $tipo = 'general';   $tipo_txt = 'Historia especial (Revista)'; $tipo_icono = 'fa-star'; }
+elseif ($cat_actual === PLEC_CAT_EDITORIAL)          { $tipo = 'editorial'; $tipo_txt = 'Editorial';                   $tipo_icono = 'fa-feather-pointed'; }
+elseif ($cat_actual === PLEC_CAT_OPINION)            { $tipo = 'opinion';   $tipo_txt = 'Columna de opinión';          $tipo_icono = 'fa-user-tie'; }
+elseif ($cat_actual === PLEC_CAT_INCLUSION)          { $tipo = 'inclusion'; $tipo_txt = 'Inclusión';                   $tipo_icono = 'fa-universal-access'; }
+else                                                 { $tipo = 'general';   $tipo_txt = 'Noticia general';             $tipo_icono = 'fa-newspaper'; }
+
+$img_actual = (string)($n['imagen'] ?? '');
+if ($img_actual !== '' && strpos($img_actual, 'img/') !== 0 && strpos($img_actual, 'http') !== 0) $img_actual = 'img/' . $img_actual;
+$es_opinion = ($cat_actual === PLEC_CAT_OPINION);
+$limite_txt = plec_admin_mb(plec_admin_limite_subida());
+
+$fecha_pub = '';
+if (!empty($n['fecha_publicacion']) && ($t = strtotime($n['fecha_publicacion']))) {
+    $meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    $fecha_pub = date('j', $t) . ' ' . $meses[(int)date('n', $t) - 1] . ' ' . date('Y', $t) . ', ' . date('H:i', $t);
 }
+
+plec_admin_cabecera('Editar: ' . mb_substr($n['titulo'], 0, 40), 'editar', ['stream_activo' => plec_admin_stream($conn)['activo']]);
 ?>
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Editar Noticia - PLEC</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root { --azul: #1a73e8; --negro: #121212; }
-        body { background: #f4f7f6; font-family: 'Segoe UI', sans-serif; }
 
-        .navbar-plec { background: var(--negro); border-bottom: 4px solid var(--azul); padding: 14px 0; }
-
-        .card-edit { border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e0e0e0; }
-
-        /* Ficha de info actual */
-        .ficha-actual { background: #1e1e1e; border-radius: 10px; padding: 18px 20px; margin-bottom: 24px; border-left: 4px solid var(--azul); }
-        .ficha-actual .label { color: #888; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
-        .ficha-actual .valor { color: #fff; font-size: 14px; }
-
-        .imagen-preview { width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; }
-        .sin-imagen { background: #eee; border-radius: 8px; height: 120px; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 13px; }
-
-        .seccion-especial { background: rgba(26,115,232,0.05); border: 1px dashed var(--azul); border-radius: 8px; padding: 14px; }
-        .form-label { font-weight: 700; font-size: 0.82rem; color: #444; text-transform: uppercase; }
-        .btn-guardar { background: var(--azul); color: #fff; border: none; font-weight: bold; }
-        .btn-guardar:hover { background: #155cb0; color: #fff; }
-    </style>
-</head>
-<body>
-
-<nav class="navbar-plec mb-4">
-    <div class="container d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-3">
-            <img src="img/logo-plec.jpg" style="height:45px; border-radius:5px;">
-            <h5 class="text-white m-0">Editar Noticia</h5>
+<header class="pa-encabezado">
+    <div>
+        <a class="pa-volver" href="admin.php#publicaciones"><i class="fas fa-arrow-left"></i> Volver a publicaciones</a>
+        <h1 class="pa-h1">Editar publicación</h1>
+        <div class="pa-meta-edicion pa-acento-<?php echo $tipo; ?>">
+            <span class="pa-tipo-badge"><i class="fas <?php echo $tipo_icono; ?>"></i> <?php echo plec_e($tipo_txt); ?></span>
+            <span>#<?php echo (int)$n['id']; ?></span>
+            <?php if ($fecha_pub): ?><span><i class="far fa-calendar"></i> <?php echo plec_e($fecha_pub); ?></span><?php endif; ?>
+            <span><i class="fas fa-eye"></i> <?php echo number_format((int)($n['vistas'] ?? 0), 0, ',', '.'); ?> lecturas</span>
         </div>
-        <a href="admin.php" class="btn btn-outline-light btn-sm">
-            <i class="fas fa-arrow-left me-1"></i> Volver al Panel
-        </a>
     </div>
-</nav>
-
-<div class="container pb-5" style="max-width: 780px;">
-
-    <?php if (isset($error)): ?>
-        <div class="alert alert-danger mb-3"><?php echo $error; ?></div>
-    <?php endif; ?>
-
-    <!-- ── FICHA DE INFORMACIÓN ACTUAL ── -->
-    <div class="ficha-actual mb-4">
-        <div class="row g-3 align-items-center">
-            <div class="col-md-5">
-                <div class="label">Tipo de contenido</div>
-                <div class="mt-1"><?php echo $tipo_badge; ?></div>
-            </div>
-            <div class="col-md-4">
-                <div class="label">Categoría actual</div>
-                <div class="valor fw-bold"><?php echo htmlspecialchars($nombre_cat_actual); ?></div>
-            </div>
-            <div class="col-md-3">
-                <div class="label">ID de noticia</div>
-                <div class="valor">#<?php echo $n['id']; ?></div>
-            </div>
-        </div>
-        <?php if (!empty($n['fecha_publicacion'])): ?>
-        <div class="mt-2">
-            <span class="label">Publicada el: </span>
-            <span class="valor"><?php echo date('d/m/Y H:i', strtotime($n['fecha_publicacion'])); ?></span>
-        </div>
-        <?php endif; ?>
+    <div class="pa-encabezado-acciones">
+        <a class="btn pa-btn pa-btn-sec" href="noticia.php?id=<?php echo (int)$n['id']; ?>" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square"></i> Ver en el sitio</a>
     </div>
+</header>
 
-    <div class="card card-edit p-4">
-        <form method="POST" enctype="multipart/form-data">
-            <input type="hidden" name="id" value="<?php echo $n['id']; ?>">
+<section class="pa-card">
+    <form class="pa-pane is-activo pa-acento-<?php echo $tipo; ?>" method="POST" action="editar_noticia.php?id=<?php echo (int)$n['id']; ?>"
+          enctype="multipart/form-data" data-pa-form data-pa-tipo="<?php echo $tipo; ?>">
+        <input type="hidden" name="id" value="<?php echo (int)$n['id']; ?>">
+        <input type="hidden" name="csrf" value="<?php echo plec_e(plec_admin_csrf()); ?>">
 
-            <!-- TÍTULO -->
-            <div class="mb-3">
-                <label class="form-label">Título</label>
-                <input type="text" name="titulo" class="form-control" value="<?php echo htmlspecialchars($n['titulo']); ?>" required>
-            </div>
-
-            <!-- DESCRIPCIÓN -->
-            <div class="mb-3">
-                <label class="form-label">Descripción Corta</label>
-                <textarea name="descripcion" class="form-control" rows="2"><?php echo htmlspecialchars($n['descripcion'] ?? ''); ?></textarea>
-            </div>
-
-            <!-- CONTENIDO -->
-            <div class="mb-3">
-                <label class="form-label">Contenido Completo</label>
-                <textarea name="contenido" class="form-control" rows="7" required><?php echo htmlspecialchars($n['contenido']); ?></textarea>
-            </div>
-
-            <!-- CATEGORÍA -->
-            <div class="mb-3">
-                <label class="form-label">Categoría</label>
-                <select name="categoria_id" class="form-select">
-                    <?php
-                    $res_c = mysqli_query($conn, "SELECT * FROM categorias ORDER BY nombre ASC");
-                    while($c = mysqli_fetch_assoc($res_c)){
-                        $sel = ($c['id'] == $n['categoria_id']) ? "selected" : "";
-                        echo "<option value='".$c['id']."' $sel>".htmlspecialchars($c['nombre'])."</option>";
-                    }
-                    ?>
-                </select>
-            </div>
-
-            <!-- ES ESPECIAL -->
-            <div class="mb-3 seccion-especial">
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" name="es_especial" id="es_especial" value="1"
-                        <?php echo ($n['es_especial'] == 1) ? 'checked' : ''; ?>>
-                    <label class="form-check-label fw-bold text-primary" for="es_especial">
-                        <i class="fas fa-star me-1"></i> ¿Historia Especial? (aparece en Revista / Edición Especial)
-                    </label>
+        <div class="pa-pane-grid">
+            <div class="pa-pane-principal">
+                <div class="pa-campo">
+                    <label class="pa-label" for="ed-titulo">Título <span class="pa-req" aria-hidden="true">*</span></label>
+                    <input type="text" name="titulo" id="ed-titulo" class="form-control pa-input-titulo<?php echo $campo_error === 'titulo' ? ' is-invalid' : ''; ?>"
+                           maxlength="255" required autocomplete="off" value="<?php echo plec_e($valores['titulo']); ?>" data-pa-contar>
+                    <div class="pa-ayuda-fila"><span></span><span class="pa-contador" data-pa-contador></span></div>
                 </div>
-                <small class="text-muted">Si está activo, esta noticia NO aparece en el noticiero normal.</small>
-            </div>
-
-            <!-- VIDEO URL -->
-            <div class="mb-3">
-                <label class="form-label">URL del Video (YouTube/Vimeo/Facebook)</label>
-                <input type="url" name="video_url" class="form-control" placeholder="https://www.youtube.com/embed/VIDEO_ID" value="<?php echo htmlspecialchars($n['video_url'] ?? ''); ?>">
-                <small class="text-muted">Deja vacío para quitar el video. Usa enlaces de inserción (embed).</small>
-            </div>
-
-            <!-- IMAGEN ACTUAL + NUEVA -->
-            <div class="mb-4">
-                <label class="form-label">Imagen</label>
-                <?php if (!empty($n['imagen'])): ?>
-                    <div class="mb-2">
-                        <small class="text-muted d-block mb-1">Imagen actual:</small>
-                        <img src="<?php echo htmlspecialchars($n['imagen']); ?>" class="imagen-preview"
-                             onerror="this.style.display='none'; document.getElementById('sin-img').style.display='flex';">
-                        <div id="sin-img" class="sin-imagen mt-1" style="display:none;">
-                            <span><i class="fas fa-image me-1"></i> No se puede cargar la imagen actual</span>
-                        </div>
-                        <small class="text-muted">Ruta: <?php echo htmlspecialchars($n['imagen']); ?></small>
+                <div class="pa-campo pa-campo-texto">
+                    <label class="pa-label" for="ed-contenido">Contenido <span class="pa-req" aria-hidden="true">*</span></label>
+                    <textarea name="contenido" id="ed-contenido" class="form-control pa-textarea<?php echo $campo_error === 'contenido' ? ' is-invalid' : ''; ?>"
+                              rows="16" required data-pa-palabras><?php echo plec_e($valores['contenido']); ?></textarea>
+                    <div class="pa-ayuda-fila">
+                        <span>Los saltos de línea se respetan tal cual en el sitio.</span>
+                        <span class="pa-contador" data-pa-palabras-cuenta></span>
                     </div>
-                <?php else: ?>
-                    <div class="sin-imagen mb-2"><span><i class="fas fa-image me-2"></i>Sin imagen</span></div>
-                <?php endif; ?>
-                <input type="file" name="imagen" class="form-control mt-2" accept="image/*">
-                <small class="text-muted">Deja vacío para mantener la imagen actual.</small>
+                </div>
             </div>
 
-            <button type="submit" class="btn btn-guardar w-100 py-2">
-                <i class="fas fa-save me-2"></i> GUARDAR CAMBIOS
-            </button>
-            <a href="admin.php" class="btn btn-link w-100 mt-2 text-secondary text-center d-block">Cancelar</a>
-        </form>
-    </div>
-</div>
+            <div class="pa-pane-lateral">
+                <div class="pa-campo">
+                    <label class="pa-label" for="ed-categoria">Categoría <span class="pa-req" aria-hidden="true">*</span></label>
+                    <select name="categoria" id="ed-categoria" class="form-select<?php echo $campo_error === 'categoria' ? ' is-invalid' : ''; ?>" required>
+                        <?php foreach ($categorias as $c): ?>
+                            <option value="<?php echo (int)$c['id']; ?>"<?php echo (int)$c['id'] === $cat_actual ? ' selected' : ''; ?>><?php echo plec_e($c['nombre']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+                <?php echo plec_mapa_campos_admin($conn, $valores['departamento_id'] ?? null, $valores['municipio_id'] ?? null, 'editar'); ?>
+
+                <div class="pa-campo">
+                    <span class="pa-label" id="ed-imagen-label"><?php echo $es_opinion ? 'Foto del columnista' : 'Imagen destacada'; ?></span>
+                    <div class="pa-drop<?php echo $es_opinion ? ' is-redonda' : ''; ?><?php echo $campo_error === 'imagen' ? ' is-invalid' : ''; ?>" data-pa-drop
+                         <?php if ($img_actual !== ''): ?>data-actual="<?php echo plec_e($img_actual); ?>"<?php endif; ?>>
+                        <input type="file" name="imagen" id="ed-imagen" accept="image/jpeg,image/png,image/webp,image/gif"
+                               aria-labelledby="ed-imagen-label" aria-describedby="ed-imagen-ayuda">
+                        <div class="pa-drop-vacio">
+                            <i class="fas fa-cloud-arrow-up"></i>
+                            <b><?php echo $img_actual !== '' ? 'Elige otra imagen' : 'Arrastra la imagen o haz clic'; ?></b>
+                            <small id="ed-imagen-ayuda">JPG, PNG, WEBP o GIF · hasta <?php echo plec_e($limite_txt); ?></small>
+                        </div>
+                        <div class="pa-drop-lleno" hidden>
+                            <img alt="Imagen de la publicación">
+                            <div class="pa-drop-info"><b data-pa-drop-nombre></b><small data-pa-drop-peso></small></div>
+                        </div>
+                        <button type="button" class="pa-drop-quitar" data-pa-drop-quitar aria-label="Descartar la imagen elegida" hidden><i class="fas fa-xmark"></i></button>
+                    </div>
+                    <?php if ($img_actual !== ''): ?>
+                        <label class="pa-check mt-2">
+                            <input type="checkbox" class="form-check-input" name="quitar_imagen" value="1" data-pa-quitar-imagen>
+                            <span>Quitar la imagen actual</span>
+                        </label>
+                    <?php endif; ?>
+                </div>
+
+                <div class="pa-campo">
+                    <label class="pa-label" for="ed-video">Video <span class="pa-opcional">opcional</span></label>
+                    <input type="text" inputmode="url" name="video_url" id="ed-video" class="form-control<?php echo $campo_error === 'video_url' ? ' is-invalid' : ''; ?>"
+                           placeholder="Pega el enlace del video" autocomplete="off" value="<?php echo plec_e($valores['video_url'] ?? ''); ?>"
+                           data-pa-video aria-describedby="ed-video-estado">
+                    <div class="pa-video-estado" id="ed-video-estado" data-pa-video-estado>Déjalo vacío para quitar el video.</div>
+                </div>
+
+                <label class="pa-switch form-switch" for="ed-especial">
+                    <input class="form-check-input" type="checkbox" role="switch" name="es_especial" value="1" id="ed-especial"<?php echo (int)$valores['es_especial'] === 1 ? ' checked' : ''; ?>>
+                    <span>
+                        <b><i class="fas fa-star"></i> Historia especial</b>
+                        <small>Sale en la Revista y <strong>no</strong> en el noticiero de la portada.</small>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class="pa-form-error" role="alert"<?php echo $error ? '' : ' hidden'; ?>><?php echo $error ? '<i class="fas fa-triangle-exclamation"></i> ' . plec_e($error) : ''; ?></div>
+        <div class="pa-progreso" hidden>
+            <div class="pa-progreso-pista"><div class="pa-progreso-barra"></div></div>
+            <span class="pa-progreso-texto">Subiendo…</span>
+        </div>
+
+        <div class="pa-form-pie">
+            <a class="btn pa-btn pa-btn-sec" href="admin.php#publicaciones">Cancelar</a>
+            <div class="pa-form-botones">
+                <button type="button" class="btn pa-btn pa-btn-sec" data-pa-preview><i class="fas fa-eye"></i> Vista previa</button>
+                <button type="submit" class="btn pa-btn pa-btn-acento" data-pa-enviar><i class="fas fa-floppy-disk"></i> <span>Guardar cambios</span></button>
+            </div>
+        </div>
+    </form>
+</section>
+
+<?php plec_admin_pie(); ?>
